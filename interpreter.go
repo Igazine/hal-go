@@ -71,7 +71,7 @@ func (i *Interpreter) Eval(expr Expr, scope Scope) Value {
 	case *AssignExpr:
 		val := i.Eval(e.Value, scope)
 		scope.Set(e.Name, val)
-		return Value{Type: TypeVoid}
+		return val
 
 	case *LiteralExpr:
 		return e.Value
