@@ -20,9 +20,7 @@ func main() {
 		return
 	}
 
-	r := hal.NewRunner()
-	hal.RegisterStdlib(r)
-	registerSyslib(r)
+	r := createRunner()
 
 	// Map CLI strings to HAL Host Arguments
 	var halArgs []hal.Value
@@ -42,6 +40,41 @@ func main() {
 		os.Exit(int(result.Number))
 	}
 	os.Exit(0)
+}
+
+func createRunner() *hal.Runner {
+	// 1. Instantiate the core Runner with OS-specific I/O
+	r := hal.NewRunner(
+		func(path string) (string, error) {
+			b, err := os.ReadFile(path)
+			return string(b), err
+		},
+		func(m, dir string) (string, error) {
+			if filepath.IsAbs(m) { return m, nil }
+			
+			baseDir := filepath.Dir(dir)
+			if dir == "" { baseDir = "." }
+			
+			joined := filepath.Join(baseDir, m)
+			if filepath.Ext(joined) == "" {
+				if _, err := os.Stat(joined + ".hal"); err == nil {
+					return joined + ".hal", nil
+				}
+			}
+			return filepath.Abs(joined)
+		},
+	)
+
+	// 2. Register the Standard Library manually (Optional, per-task registration)
+	std := hal.GetStdlibModules()
+	for modName, tasks := range std {
+		r.RegisterModule(modName, tasks)
+	}
+
+	// 3. Register Custom SYSLIB
+	registerSyslib(r)
+
+	return r
 }
 
 func registerSyslib(r *hal.Runner) {
@@ -197,9 +230,7 @@ func runConformance(root string) {
 
 	for _, t := range conformanceTests {
 		fmt.Printf("--- Running: %s ---\n", t)
-		r := hal.NewRunner()
-		hal.RegisterStdlib(r)
-		registerSyslib(r)
+		r := createRunner()
 		path := filepath.Join(root, t)
 		args := []hal.Value{}
 		if strings.HasSuffix(t, "08_host_args.hal") {

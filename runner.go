@@ -2,8 +2,6 @@ package hal
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 )
 
 type Runner struct {
@@ -11,14 +9,20 @@ type Runner struct {
 	astCache  map[string]Expr
 	macroMap  map[string]string
 	coreScope Scope
+
+	// Host-provided I/O abstractions
+	ReadFile    func(path string) (string, error)
+	ResolvePath func(macroPath string, baseFile string) (string, error)
 }
 
-func NewRunner() *Runner {
+func NewRunner(readFile func(string) (string, error), resolvePath func(string, string) (string, error)) *Runner {
 	return &Runner{
-		pathCache: make(map[string]string),
-		astCache:  make(map[string]Expr),
-		macroMap:  make(map[string]string),
-		coreScope: NewScope(nil),
+		pathCache:   make(map[string]string),
+		astCache:    make(map[string]Expr),
+		macroMap:    make(map[string]string),
+		coreScope:   NewScope(nil),
+		ReadFile:    readFile,
+		ResolvePath: resolvePath,
 	}
 }
 
@@ -38,7 +42,8 @@ func (r *Runner) RegisterModule(name string, tasks map[string]NativeFunc) {
 }
 
 func (r *Runner) Load(scriptPath string) (string, error) {
-	absPath, err := filepath.Abs(scriptPath)
+	// Canonicalization/Absolute path resolution is the responsibility of ResolvePath
+	absPath, err := r.ResolvePath(scriptPath, "")
 	if err != nil { return "", err }
 
 	if _, ok := r.astCache[absPath]; ok { return absPath, nil }
@@ -59,7 +64,7 @@ func (r *Runner) Load(scriptPath string) (string, error) {
 }
 
 func (r *Runner) Unload(scriptPath string) {
-	absPath, err := filepath.Abs(scriptPath)
+	absPath, err := r.ResolvePath(scriptPath, "")
 	if err != nil { return }
 	delete(r.astCache, absPath)
 	delete(r.pathCache, absPath)
@@ -90,21 +95,20 @@ func (r *Runner) preprocess(path string, stack []string) error {
 	}
 	if _, ok := r.pathCache[path]; ok { return nil }
 
-	content, err := os.ReadFile(path)
+	content, err := r.ReadFile(path)
 	if err != nil { return err }
-	r.pathCache[path] = string(content)
+	r.pathCache[path] = content
 
 	newStack := append(stack, path)
-	macros := r.scanMacros(string(content))
-	dir := filepath.Dir(path)
+	macros := r.scanMacros(content)
 
 	for _, m := range macros {
-		mPath := r.resolvePath(m, dir)
-		mAbs, err := filepath.Abs(mPath)
+		mPath, err := r.ResolvePath(m, path)
 		if err != nil { return err }
-		err = r.preprocess(mAbs, newStack)
+		
+		err = r.preprocess(mPath, newStack)
 		if err != nil { return err }
-		r.macroMap[m] = r.pathCache[mAbs]
+		r.macroMap[m] = r.pathCache[mPath]
 	}
 	return nil
 }
@@ -122,15 +126,4 @@ func (r *Runner) scanMacros(content string) []string {
 		}
 	}
 	return macros
-}
-
-func (r *Runner) resolvePath(m string, dir string) string {
-	if filepath.IsAbs(m) { return m }
-	joined := filepath.Join(dir, m)
-	if filepath.Ext(joined) == "" {
-		if _, err := os.Stat(joined + ".hal"); err == nil {
-			return joined + ".hal"
-		}
-	}
-	return joined
 }
