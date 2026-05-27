@@ -11,7 +11,6 @@ const (
 	TokenIdentifier TokenType = iota
 	TokenNumber
 	TokenString
-	TokenRegex
 	
 	TokenAssign    // =
 	TokenQuestion  // ?
@@ -76,11 +75,6 @@ func (l *Lexer) Tokenize() []Token {
 
 		if char == '/' && l.peek() == '/' {
 			l.skipComment()
-			continue
-		}
-
-		if char == '/' && l.isRegexStart() {
-			l.readRegex()
 			continue
 		}
 
@@ -150,41 +144,6 @@ func (l *Lexer) skipComment() {
 	for l.pos < len(l.input) && l.input[l.pos] != '\n' {
 		l.pos++
 	}
-}
-
-func (l *Lexer) isRegexStart() bool {
-	if len(l.tokens) == 0 {
-		return true
-	}
-	last := l.tokens[len(l.tokens)-1]
-	switch last.Type {
-	case TokenAssign, TokenQuestion, TokenColon, TokenComma, TokenLParen, TokenLBracket, TokenLBrace, TokenNewline, TokenNot:
-		return true
-	}
-	return false
-}
-
-func (l *Lexer) readRegex() {
-	start := l.pos
-	l.pos++ // skip leading /
-	for l.pos < len(l.input) && l.input[l.pos] != '/' {
-		if l.input[l.pos] == '\\' {
-			l.pos += 2
-		} else {
-			l.pos++
-		}
-	}
-	if l.pos >= len(l.input) {
-		l.addToken(TokenError, "Unclosed regex literal")
-		return
-	}
-	l.pos++ // skip trailing /
-	
-	// read flags
-	for l.pos < len(l.input) && unicode.IsLetter(l.input[l.pos]) {
-		l.pos++
-	}
-	l.addToken(TokenRegex, string(l.input[start:l.pos]))
 }
 
 func (l *Lexer) readNumber() {

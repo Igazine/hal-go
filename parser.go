@@ -3,16 +3,15 @@ package hal
 import (
 	"fmt"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 )
 
 type Parser struct {
-	tokens       []Token
-	pos          int
-	filename     string
-	macroMap     map[string]string
+	tokens   []Token
+	pos      int
+	filename string
+	macroMap map[string]string
 }
 
 func NewParser(tokens []Token, filename string, macroMap map[string]string) *Parser {
@@ -29,7 +28,7 @@ func NewParser(tokens []Token, filename string, macroMap map[string]string) *Par
 func (p *Parser) Parse() (Expr, error) {
 	td := p.peekTd()
 	var exprs []Expr
-	
+
 	// { MacroInclude }
 	for !p.isEof() {
 		p.skipNewlines()
@@ -37,10 +36,12 @@ func (p *Parser) Parse() (Expr, error) {
 			break
 		}
 		inc, err := p.parseInclude()
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 		exprs = append(exprs, inc)
 	}
-	
+
 	p.skipNewlines()
 	if p.isEof() {
 		return nil, p.error("Script must conclude with a FuncDef or a bare Block")
@@ -54,15 +55,19 @@ func (p *Parser) Parse() (Expr, error) {
 		task, err = p.parseFuncDef()
 	} else if tdTask.Type == TokenLBrace {
 		body, err := p.parseBlock()
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 		task = &FuncDefExpr{Params: []Param{}, Body: body, Token: tdTask}
 	} else {
 		return nil, p.error("Script must conclude with a FuncDef or a bare Block")
 	}
-	if err != nil { return nil, err }
-	
+	if err != nil {
+		return nil, err
+	}
+
 	exprs = append(exprs, task)
-	
+
 	p.skipNewlines()
 	if !p.isEof() {
 		return nil, p.error("Unexpected content after script task definition")
@@ -74,7 +79,7 @@ func (p *Parser) Parse() (Expr, error) {
 func (p *Parser) parseStatement() (Expr, error) {
 	p.skipNewlines()
 	td := p.peekTd()
-	
+
 	switch td.Type {
 	case TokenQuestion:
 		return p.parseFlowControl()
@@ -91,36 +96,44 @@ func (p *Parser) parseFlowControl() (Expr, error) {
 	td := p.consume(TokenQuestion)
 	p.consume(TokenLParen)
 	cond, err := p.parseExpression()
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	p.consume(TokenRParen)
-	
+
 	success, err := p.parseBlock()
-	if err != nil { return nil, err }
-	
+	if err != nil {
+		return nil, err
+	}
+
 	var fallback, rescue Expr
 	var catchVar string
-	
+
 	savedPos := p.pos
 	p.skipNewlines()
 	if !p.isEof() && p.peek().Type == TokenColon {
 		p.consume(TokenColon)
 		fallback, err = p.parseBlock()
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 		savedPos = p.pos
 		p.skipNewlines()
 	}
-	
+
 	if !p.isEof() && p.peek().Type == TokenRescue {
 		p.consume(TokenRescue)
 		p.consume(TokenLParen)
 		catchVar = p.consumeIdentifier()
 		p.consume(TokenRParen)
 		rescue, err = p.parseBlock()
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 	} else {
 		p.pos = savedPos
 	}
-	
+
 	return &FlowControlExpr{
 		Condition:     cond,
 		SuccessBlock:  success,
@@ -147,7 +160,9 @@ func (p *Parser) parsePrimary() (Expr, error) {
 		} else {
 			p.pos++
 			expr, err = p.parseExpression()
-			if err != nil { return nil, err }
+			if err != nil {
+				return nil, err
+			}
 			p.consume(TokenRParen)
 		}
 	case TokenLBrace:
@@ -155,18 +170,17 @@ func (p *Parser) parsePrimary() (Expr, error) {
 	case TokenNot:
 		p.pos++
 		target, err := p.parsePrimary()
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 		expr = &UnOpExpr{Op: "!", Target: target, Token: td}
 	case TokenQuestion:
 		p.pos++
 		target, err := p.parsePrimary()
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 		expr = &UnOpExpr{Op: "?", Target: target, Token: td}
-	case TokenRegex:
-		p.pos++
-		val, err := p.parseRegexValue(td.Literal)
-		if err != nil { return nil, err }
-		expr = &LiteralExpr{Value: val, Token: td}
 	case TokenLBracket:
 		expr, err = p.parseArrayLiteral()
 	case TokenHash:
@@ -178,7 +192,9 @@ func (p *Parser) parsePrimary() (Expr, error) {
 		if !p.isEof() && p.peek().Type == TokenAssign {
 			p.consume(TokenAssign)
 			val, err := p.parseExpression()
-			if err != nil { return nil, err }
+			if err != nil {
+				return nil, err
+			}
 			return &AssignExpr{Name: id, Value: val, Token: td}, nil
 		}
 		expr = &IdentExpr{Name: id, IsCore: false, Token: td}
@@ -193,20 +209,26 @@ func (p *Parser) parsePrimary() (Expr, error) {
 		return nil, p.error(fmt.Sprintf("Unexpected token: %v", td.Type))
 	}
 
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	return p.finishPrimary(expr)
 }
 
 func (p *Parser) finishPrimary(expr Expr) (Expr, error) {
 	for {
-		if p.isEof() { break }
+		if p.isEof() {
+			break
+		}
 		td := p.peekTd()
 		if td.Type == TokenDot {
 			p.consume(TokenDot)
 			expr = &FieldExpr{Object: expr, FieldName: p.consumeIdentifier(), Token: td}
 		} else if td.Type == TokenLParen {
 			args, err := p.parseArgList()
-			if err != nil { return nil, err }
+			if err != nil {
+				return nil, err
+			}
 			expr = &FuncCallExpr{Target: expr, Args: args, Token: td}
 		} else {
 			break
@@ -218,15 +240,21 @@ func (p *Parser) finishPrimary(expr Expr) (Expr, error) {
 func (p *Parser) isFuncDefStart() bool {
 	savedPos := p.pos
 	defer func() { p.pos = savedPos }()
-	
+
 	p.pos++ // skip (
 	depth := 1
 	for p.pos < len(p.tokens) && depth > 0 {
-		if p.tokens[p.pos].Type == TokenLParen { depth++ }
-		if p.tokens[p.pos].Type == TokenRParen { depth-- }
+		if p.tokens[p.pos].Type == TokenLParen {
+			depth++
+		}
+		if p.tokens[p.pos].Type == TokenRParen {
+			depth--
+		}
 		p.pos++
 	}
-	if p.isEof() { return false }
+	if p.isEof() {
+		return false
+	}
 	p.skipNewlines()
 	return !p.isEof() && p.peek().Type == TokenLBrace
 }
@@ -237,18 +265,24 @@ func (p *Parser) parseFuncDef() (Expr, error) {
 	var params []Param
 	if p.peek().Type != TokenRParen {
 		param, err := p.parseParam()
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 		params = append(params, param)
 		for p.peek().Type == TokenComma {
 			p.consume(TokenComma)
 			param, err = p.parseParam()
-			if err != nil { return nil, err }
+			if err != nil {
+				return nil, err
+			}
 			params = append(params, param)
 		}
 	}
 	p.consume(TokenRParen)
 	body, err := p.parseBlock()
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	return &FuncDefExpr{Params: params, Body: body, Token: td}, nil
 }
 
@@ -264,7 +298,9 @@ func (p *Parser) parseParam() (Param, error) {
 		p.consume(TokenAssign)
 		var err error
 		defVal, err = p.parseExpression()
-		if err != nil { return Param{}, err }
+		if err != nil {
+			return Param{}, err
+		}
 		isOptional = true
 	}
 	return Param{Name: name, IsOptional: isOptional, DefaultValue: defVal}, nil
@@ -275,9 +311,13 @@ func (p *Parser) parseBlock() (Expr, error) {
 	var exprs []Expr
 	for !p.isEof() && p.peek().Type != TokenRBrace {
 		p.skipNewlines()
-		if p.peek().Type == TokenRBrace { break }
+		if p.peek().Type == TokenRBrace {
+			break
+		}
 		stmt, err := p.parseStatement()
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 		exprs = append(exprs, stmt)
 	}
 	p.consume(TokenRBrace)
@@ -290,7 +330,9 @@ func (p *Parser) parseArgList() ([]Expr, error) {
 	p.skipNewlines()
 	if p.peek().Type != TokenRParen {
 		arg, err := p.parseExpression()
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 		args = append(args, arg)
 		for {
 			p.skipNewlines()
@@ -298,7 +340,9 @@ func (p *Parser) parseArgList() ([]Expr, error) {
 				p.consume(TokenComma)
 				p.skipNewlines()
 				arg, err = p.parseExpression()
-				if err != nil { return nil, err }
+				if err != nil {
+					return nil, err
+				}
 				args = append(args, arg)
 			} else {
 				break
@@ -315,11 +359,15 @@ func (p *Parser) parseObjectLiteral() (Expr, error) {
 	fields := make(map[string]Expr)
 	for !p.isEof() && p.peek().Type != TokenRBrace {
 		p.skipNewlines()
-		if p.peek().Type == TokenRBrace { break }
+		if p.peek().Type == TokenRBrace {
+			break
+		}
 		key := p.consumeIdentifier()
 		p.consume(TokenColon)
 		val, err := p.parseExpression()
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 		fields[key] = val
 		if !p.isEof() && p.peek().Type == TokenComma {
 			p.consume(TokenComma)
@@ -334,9 +382,13 @@ func (p *Parser) parseArrayLiteral() (Expr, error) {
 	var items []Expr
 	for !p.isEof() && p.peek().Type != TokenRBracket {
 		p.skipNewlines()
-		if p.peek().Type == TokenRBracket { break }
+		if p.peek().Type == TokenRBracket {
+			break
+		}
 		item, err := p.parseExpression()
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 		items = append(items, item)
 		if !p.isEof() && p.peek().Type == TokenComma {
 			p.consume(TokenComma)
@@ -352,7 +404,9 @@ func (p *Parser) parseReturn() (Expr, error) {
 	if !p.isEof() && p.peek().Type != TokenNewline && p.peek().Type != TokenRBrace && p.peek().Type != TokenRBracket && p.peek().Type != TokenComma {
 		var err error
 		val, err = p.parseExpression()
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 	}
 	return &UnOpExpr{Op: "^", Target: val, Token: td}, nil
 }
@@ -365,53 +419,25 @@ func (p *Parser) parseInclude() (Expr, error) {
 	} else {
 		rawPath = p.consumeIdentifier()
 	}
-	
+
 	content, ok := p.macroMap[rawPath]
 	if !ok {
 		return nil, p.error(fmt.Sprintf("Macro resource not found: @%s", rawPath))
 	}
-	
+
 	base := filepath.Base(rawPath)
 	taskName := strings.TrimSuffix(base, ".hal")
-	
+
 	subLexer := NewLexer(content)
 	subTokens := subLexer.Tokenize()
 	subParser := NewParser(subTokens, rawPath, p.macroMap)
-	
-	// Now just call Parse()! Everything is a TaskDef.
-	taskAst, err := subParser.Parse()
-	if err != nil { return nil, err }
-	
-	return &AssignExpr{Name: taskName, Value: taskAst, Token: td}, nil
-}
 
-func (p *Parser) parseRegexValue(lit string) (Value, error) {
-	if !strings.HasPrefix(lit, "/") { return Value{}, p.error("Invalid regex literal") }
-	lastSlash := strings.LastIndex(lit, "/")
-	if lastSlash <= 0 { return Value{}, p.error("Invalid regex literal") }
-	
-	pattern := lit[1:lastSlash]
-	flags := lit[lastSlash+1:]
-	
-	goFlags := ""
-	if strings.Contains(flags, "i") { goFlags += "i" }
-	if strings.Contains(flags, "m") { goFlags += "m" }
-	
-	finalPattern := pattern
-	if goFlags != "" {
-		finalPattern = "(?" + goFlags + ")" + pattern
+	taskAst, err := subParser.Parse()
+	if err != nil {
+		return nil, err
 	}
-	
-	re, _ := regexp.Compile(finalPattern)
-	
-	return Value{
-		Type: TypeRegex,
-		Regex: &RegexValue{
-			Pattern: pattern,
-			Flags:   flags,
-			Regexp:  re,
-		},
-	}, nil
+
+	return &AssignExpr{Name: taskName, Value: taskAst, Token: td}, nil
 }
 
 func (p *Parser) consumeIdentifier() string {
@@ -433,12 +459,16 @@ func (p *Parser) consume(t TokenType) Token {
 }
 
 func (p *Parser) peek() Token {
-	if p.isEof() { return p.tokens[len(p.tokens)-1] }
+	if p.isEof() {
+		return p.tokens[len(p.tokens)-1]
+	}
 	return p.tokens[p.pos]
 }
 
 func (p *Parser) peekTd() Token {
-	if p.isEof() { return p.tokens[len(p.tokens)-1] }
+	if p.isEof() {
+		return p.tokens[len(p.tokens)-1]
+	}
 	return p.tokens[p.pos]
 }
 

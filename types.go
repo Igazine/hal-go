@@ -8,7 +8,7 @@ const (
 	TypeString
 	TypeArray
 	TypeObject
-	TypeRegex
+	TypeOpaque
 	TypeTask
 )
 
@@ -18,16 +18,13 @@ type Value struct {
 	String string
 	Array  []Value
 	Object map[string]Value
-	Regex  *RegexValue
+	Opaque *OpaqueValue
 	Task   *TaskValue
 }
 
-type RegexValue struct {
-	Pattern string
-	Flags   string
-	Regexp  interface {
-		MatchString(string) bool
-	}
+type OpaqueValue struct {
+	Label string
+	Data  interface{}
 }
 
 type TaskValue struct {

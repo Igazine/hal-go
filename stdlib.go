@@ -127,8 +127,11 @@ func GetStdlibModules() map[string]map[string]NativeFunc {
 				return Value{Type: TypeVoid}
 			}
 			return Value{
-				Type: TypeRegex,
-				Regex: &RegexValue{Pattern: pattern, Flags: flags, Regexp: re},
+				Type: TypeOpaque,
+				Opaque: &OpaqueValue{
+					Label: "RegExp",
+					Data:  re,
+				},
 			}
 		},
 		"match": func(args []Value, ctx ExecutionContext) Value {
@@ -137,8 +140,9 @@ func GetStdlibModules() map[string]map[string]NativeFunc {
 			}
 			s := ValueToString(args[0])
 			patternVal := args[1]
-			if patternVal.Type == TypeRegex {
-				if patternVal.Regex.Regexp != nil && patternVal.Regex.Regexp.MatchString(s) {
+			if patternVal.Type == TypeOpaque && patternVal.Opaque.Label == "RegExp" {
+				re := patternVal.Opaque.Data.(*regexp.Regexp)
+				if re.MatchString(s) {
 					return Value{Type: TypeNumber, Number: 1}
 				}
 			} else {
@@ -332,7 +336,11 @@ func GetStdlibModules() map[string]map[string]NativeFunc {
 			if len(args) == 0 {
 				return Value{Type: TypeVoid}
 			}
-			any := mapHalToAny(args[0])
+			// Check for Opaque values
+			any, ok := mapHalToAny(args[0])
+			if !ok {
+				return Value{Type: TypeVoid}
+			}
 			b, err := json.Marshal(any)
 			if err != nil {
 				return Value{Type: TypeVoid}
@@ -380,26 +388,32 @@ func mapAnyToHal(v interface{}) Value {
 	}
 }
 
-func mapHalToAny(v Value) interface{} {
+func mapHalToAny(v Value) (interface{}, bool) {
 	switch v.Type {
 	case TypeString:
-		return v.String
+		return v.String, true
 	case TypeNumber:
-		return v.Number
+		return v.Number, true
 	case TypeArray:
 		var arr []interface{}
 		for _, item := range v.Array {
-			arr = append(arr, mapHalToAny(item))
+			any, ok := mapHalToAny(item)
+			if !ok { return nil, false }
+			arr = append(arr, any)
 		}
-		return arr
+		return arr, true
 	case TypeObject:
 		obj := make(map[string]interface{})
 		for k, val := range v.Object {
-			obj[k] = mapHalToAny(val)
+			any, ok := mapHalToAny(val)
+			if !ok { return nil, false }
+			obj[k] = any
 		}
-		return obj
+		return obj, true
+	case TypeOpaque:
+		return nil, false // Non-serializable
 	default:
-		return nil
+		return nil, true
 	}
 }
 
@@ -413,8 +427,8 @@ func ValueToString(v Value) string {
 		return "[Array]"
 	case TypeObject:
 		return "{Object}"
-	case TypeRegex:
-		return "[Regex]"
+	case TypeOpaque:
+		return fmt.Sprintf("[Opaque:%s]", v.Opaque.Label)
 	case TypeTask:
 		return "[Task]"
 	case TypeVoid:
