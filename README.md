@@ -2,7 +2,7 @@
 
 A Go implementation of the Hank language.
 
-This repository provides a reusable Go package (`github.com/Igazine/hank-go`) for embedding the Hank interpreter and runner into any Go application.
+This repository provides a reusable Go package for embedding the Hank interpreter and runner into any Go application.
 
 ## Installation
 
