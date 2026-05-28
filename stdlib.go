@@ -89,6 +89,12 @@ func GetStdlibModules() map[string]map[string]NativeFunc {
 		"elapsedTime": func(args []Value, ctx ExecutionContext) Value {
 			return Value{Type: TypeNumber, Number: 0}
 		},
+		"signal": func(args []Value, ctx ExecutionContext) Value {
+			if len(args) > 0 {
+				fmt.Printf("[SIGNAL] %v\n", ValueToString(args[0]))
+			}
+			return Value{Type: TypeVoid}
+		},
 	}
 
 	mods["env"] = map[string]NativeFunc{
