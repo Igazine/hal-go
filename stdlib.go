@@ -9,6 +9,16 @@ import (
 	"strings"
 )
 
+type StdLib struct{}
+
+func (s *StdLib) Name() string {
+	return "StdLib"
+}
+
+func (s *StdLib) GetModules() map[string]map[string]NativeFunc {
+	return GetStdlibModules()
+}
+
 func hankEquals(a, b Value) bool {
 	if a.Type != b.Type {
 		return false
@@ -183,65 +193,6 @@ func GetStdlibModules() map[string]map[string]NativeFunc {
 				return Value{Type: TypeVoid}
 			}
 			return Value{Type: TypeString, String: strconv.FormatInt(n, base)}
-		},
-		"bitAnd": func(args []Value, ctx ExecutionContext) Value {
-			var a, b int64
-			if len(args) > 0 {
-				a = int64(args[0].Number)
-			}
-			if len(args) > 1 {
-				b = int64(args[1].Number)
-			}
-			return Value{Type: TypeNumber, Number: float64(a & b)}
-		},
-		"bitOr": func(args []Value, ctx ExecutionContext) Value {
-			var a, b int64
-			if len(args) > 0 {
-				a = int64(args[0].Number)
-			}
-			if len(args) > 1 {
-				b = int64(args[1].Number)
-			}
-			return Value{Type: TypeNumber, Number: float64(a | b)}
-		},
-		"bitXor": func(args []Value, ctx ExecutionContext) Value {
-			var a, b int64
-			if len(args) > 0 {
-				a = int64(args[0].Number)
-			}
-			if len(args) > 1 {
-				b = int64(args[1].Number)
-			}
-			return Value{Type: TypeNumber, Number: float64(a ^ b)}
-		},
-		"bitNot": func(args []Value, ctx ExecutionContext) Value {
-			var a int64
-			if len(args) > 0 {
-				a = int64(args[0].Number)
-			}
-			return Value{Type: TypeNumber, Number: float64(^a)}
-		},
-		"shiftL": func(args []Value, ctx ExecutionContext) Value {
-			var a int64
-			var b uint
-			if len(args) > 0 {
-				a = int64(args[0].Number)
-			}
-			if len(args) > 1 {
-				b = uint(args[1].Number)
-			}
-			return Value{Type: TypeNumber, Number: float64(a << b)}
-		},
-		"shiftR": func(args []Value, ctx ExecutionContext) Value {
-			var a int64
-			var b uint
-			if len(args) > 0 {
-				a = int64(args[0].Number)
-			}
-			if len(args) > 1 {
-				b = uint(args[1].Number)
-			}
-			return Value{Type: TypeNumber, Number: float64(a >> b)}
 		},
 	}
 
@@ -527,7 +478,7 @@ func mapAnyToHank(v interface{}) Value {
 		}
 		return Value{Type: TypeObject, Object: obj}
 	default:
-		panic(fmt.Sprintf("Hank Boundary Error: Complex host object [%T] must implement SerializeHAL() to bridge into Hank.", v))
+		return Value{Type: TypeVoid}
 	}
 }
 

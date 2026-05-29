@@ -36,6 +36,13 @@ func (r *Runner) RegisterModule(name string, tasks map[string]NativeFunc) {
 	r.coreScope.Set(name, Value{Type: TypeObject, Object: moduleObj})
 }
 
+func (r *Runner) RegisterExtension(ext HankExtension) {
+	mods := ext.GetModules()
+	for name, tasks := range mods {
+		r.RegisterModule(name, tasks)
+	}
+}
+
 /**
  * Pre-loads and caches a resource for execution.
  */

@@ -70,6 +70,11 @@ type IHALSerializable interface {
 	SerializeHAL() string
 }
 
+type HankExtension interface {
+	Name() string
+	GetModules() map[string]map[string]NativeFunc
+}
+
 type HankError int
 
 const (
@@ -97,7 +102,8 @@ const (
 	TooManyArguments         HankError = 4002
 	MissingRequiredParameter HankError = 4003
 	Halt                     HankError = 4004
-	GenericRuntimeError      HankError = 4005
+	BitwiseOutOfBounds       HankError = 4005
+	GenericRuntimeError      HankError = 4006
 )
 
 type HankErrorValue struct {

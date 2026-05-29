@@ -22,6 +22,7 @@ var HankErrorMessages = map[HankError]string{
 	TooManyArguments:              "Too many arguments",
 	MissingRequiredParameter:      "Missing required parameter: %v",
 	Halt:                          "HANK_HALT:%v",
+	BitwiseOutOfBounds:            "Value exceeds safe integer bounds for bitwise operation: %v",
 	GenericRuntimeError:           "%v",
 }
 
