@@ -34,7 +34,16 @@ func NewInterpreter(parentScope Scope, coreScope Scope) *Interpreter {
 }
 
 func (i *Interpreter) Run(expr Expr) (Value, error) {
-	// Root level hoisting is now handled inside Eval for BlockExpr
+	defer func() {
+		if r := recover(); r != nil {
+			if _, ok := r.(*ReturnSignal); ok {
+				// Should not happen at root
+			} else {
+				// Re-panic if it's not a return signal, or handle it?
+				// Actually, we should probably catch HankErrorValue here.
+			}
+		}
+	}()
 	return i.Eval(expr, i.globalScope), nil
 }
 
@@ -120,7 +129,7 @@ func (i *Interpreter) Eval(expr Expr, scope Scope) Value {
 
 	case *FuncCallExpr:
 		if i.depth > MaxDepth {
-			panic("Stack overflow")
+			panic(CreateHankError(GenericRuntimeError, []interface{}{"Stack overflow"}, "", 0, ""))
 		}
 		target := i.Eval(e.Target, scope)
 		var args []Value
@@ -196,7 +205,7 @@ func (i *Interpreter) evalFlowControl(e *FlowControlExpr, scope Scope) (result V
 
 func (i *Interpreter) Call(task Value, args []Value, scope Scope) Value {
 	if task.Type != TypeTask {
-		panic(fmt.Sprintf("Target is not a function: %v", task.Type))
+		panic(CreateHankError(TargetNotFunction, []interface{}{ValueToString(task)}, "", 0, ""))
 	}
 
 	tv := task.Task
@@ -234,7 +243,7 @@ func (i *Interpreter) evalTaskBody(body Expr, scope Scope) (val Value) {
 
 func (i *Interpreter) mapArgsToParams(params []Param, args []Value, scope Scope) {
 	if len(args) > len(params) {
-		panic("Too many arguments")
+		panic(CreateHankError(TooManyArguments, nil, "", 0, ""))
 	}
 
 	for idx, p := range params {
@@ -244,7 +253,7 @@ func (i *Interpreter) mapArgsToParams(params []Param, args []Value, scope Scope)
 		} else if p.DefaultValue != nil {
 			val = i.Eval(p.DefaultValue.(Expr), scope)
 		} else if !p.IsOptional {
-			panic(fmt.Sprintf("Missing required argument: %s", p.Name))
+			panic(CreateHankError(MissingRequiredParameter, []interface{}{p.Name}, "", 0, ""))
 		}
 		scope.Set(p.Name, val)
 	}

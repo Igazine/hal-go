@@ -69,3 +69,42 @@ type Resource interface {
 type IHALSerializable interface {
 	SerializeHAL() string
 }
+
+type HankError int
+
+const (
+	// Lexical Errors (10xx)
+	UnexpectedCharacter   HankError = 1001
+	UnclosedStringLiteral HankError = 1002
+
+	// Syntax Errors (20xx)
+	EmptyScript                   HankError = 2001
+	ExpectedMainTask              HankError = 2002
+	UnexpectedCodeOutsideMainTask HankError = 2003
+	InvalidAssignmentTarget       HankError = 2004
+	UnexpectedToken               HankError = 2005
+	MacroRequiresString           HankError = 2006
+	ExpectedIdentifier             HankError = 2007
+
+	// Resolution & Runner Errors (30xx)
+	CircularDependency       HankError = 3001
+	ResourceContentNotLoaded HankError = 3002
+	ScriptMustBeTask         HankError = 3003
+	MacroResourceNotFound   HankError = 3004
+
+	// Runtime Errors (40xx)
+	TargetNotFunction        HankError = 4001
+	TooManyArguments         HankError = 4002
+	MissingRequiredParameter HankError = 4003
+	Halt                     HankError = 4004
+	GenericRuntimeError      HankError = 4005
+)
+
+type HankErrorValue struct {
+	Code    HankError
+	Message string
+}
+
+func (e *HankErrorValue) Error() string {
+	return e.Message
+}

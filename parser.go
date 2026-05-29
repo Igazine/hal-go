@@ -1,7 +1,6 @@
 package hank
 
 import (
-	"fmt"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -41,7 +40,7 @@ func (p *Parser) Parse() (Expr, error) {
 
 	p.skipNewlines()
 	if p.isEof() {
-		return nil, p.error("Syntax Error: Script is empty.")
+		return nil, p.error(EmptyScript)
 	}
 
 	// 2. Parse exactly ONE TaskDef (FuncDef or Block)
@@ -56,7 +55,7 @@ func (p *Parser) Parse() (Expr, error) {
 		}
 		task = &FuncDefExpr{Params: []Param{}, Body: body, Token: p.peekTd()}
 	} else {
-		return nil, p.error("Syntax Error: Expected main task definition (a closure or a block).")
+		return nil, p.error(ExpectedMainTask)
 	}
 	if err != nil {
 		return nil, err
@@ -67,7 +66,7 @@ func (p *Parser) Parse() (Expr, error) {
 	// 3. Assert EOF
 	p.skipNewlines()
 	if !p.isEof() {
-		return nil, p.error("Syntax Error: Unexpected code outside of main task. A Hank script must contain exactly one Task definition.")
+		return nil, p.error(UnexpectedCodeOutsideMainTask)
 	}
 
 	if len(exprs) == 1 {
@@ -206,7 +205,7 @@ func (p *Parser) parsePrimary() (Expr, error) {
 		val, _ := strconv.ParseFloat(td.Literal, 64)
 		expr = &LiteralExpr{Value: Value{Type: TypeNumber, Number: val}, Token: td}
 	default:
-		return nil, p.error(fmt.Sprintf("Unexpected token: %v", td.Type))
+		return nil, p.error(UnexpectedToken, td.Type, td.Literal)
 	}
 
 	if err != nil {
@@ -417,7 +416,7 @@ func (p *Parser) parseInclude() (Expr, error) {
 		t := p.consume(TokenString)
 		rawPath = t.Literal
 	} else {
-		return nil, p.error("Syntax Error: The '@' macro strictly requires a string literal path (e.g., @ \"utils\"). Identifier shorthand is not allowed.")
+		return nil, p.error(MacroRequiresString)
 	}
 
 	taskAst, err := p.macroResolver(rawPath)
@@ -434,7 +433,7 @@ func (p *Parser) parseInclude() (Expr, error) {
 func (p *Parser) consumeIdentifier() string {
 	td := p.peekTd()
 	if td.Type != TokenIdentifier {
-		panic(p.error(fmt.Sprintf("Expected identifier, found %v", td.Type)))
+		panic(p.error(ExpectedIdentifier, td.Type))
 	}
 	p.pos++
 	return td.Literal
@@ -443,7 +442,7 @@ func (p *Parser) consumeIdentifier() string {
 func (p *Parser) consume(t TokenType) Token {
 	td := p.peekTd()
 	if td.Type != t {
-		panic(p.error(fmt.Sprintf("Expected %v, found %v", t, td.Type)))
+		panic(p.error(UnexpectedToken, t, td.Type))
 	}
 	p.pos++
 	return td
@@ -473,7 +472,7 @@ func (p *Parser) isEof() bool {
 	return p.pos >= len(p.tokens) || p.tokens[p.pos].Type == TokenEOF
 }
 
-func (p *Parser) error(msg string) error {
+func (p *Parser) error(code HankError, args ...interface{}) error {
 	td := p.peekTd()
-	return fmt.Errorf("ERROR: %s in %s at\n\t%d:\t%s", msg, p.filename, td.Line, td.LineText)
+	return CreateHankError(code, args, p.filename, td.Line, td.LineText)
 }

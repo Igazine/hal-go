@@ -1,7 +1,6 @@
 package hank
 
 import (
-	"fmt"
 	"unicode"
 )
 
@@ -116,7 +115,7 @@ func (l *Lexer) Tokenize() []Token {
 		case '[': l.addToken(TokenLBracket, "[")
 		case ']': l.addToken(TokenRBracket, "]")
 		default:
-			l.addToken(TokenError, fmt.Sprintf("Unexpected character: %c", char))
+			l.addToken(TokenError, CreateHankError(UnexpectedCharacter, []interface{}{char}, "", 0, "").Message)
 		}
 		l.pos++
 	}
@@ -184,7 +183,7 @@ func (l *Lexer) readString(quote rune) {
 		l.pos++
 	}
 	if l.pos >= len(l.input) {
-		l.addToken(TokenError, "Unclosed string literal")
+		l.addToken(TokenError, CreateHankError(UnclosedStringLiteral, nil, "", 0, "").Message)
 		return
 	}
 	l.pos++ // skip quote

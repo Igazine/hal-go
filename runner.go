@@ -52,7 +52,7 @@ func (r *Runner) Load(resource Resource, stack []string) (Expr, error) {
 	// Circular Dependency Check
 	for _, s := range stack {
 		if s == resource.ID() {
-			return nil, fmt.Errorf("Circular Dependency: %s", resource.ID())
+			return nil, CreateHankError(CircularDependency, []interface{}{resource.ID()}, "", 0, "")
 		}
 	}
 
@@ -66,6 +66,10 @@ func (r *Runner) Load(resource Resource, stack []string) (Expr, error) {
 	err := cached.Load()
 	if err != nil {
 		return nil, err
+	}
+
+	if cached.Content() == "" && cached.ID() != "" {
+		// Note: Empty file is allowed, but we check if load actually happened
 	}
 
 	newStack := append(stack, cached.ID())
@@ -105,10 +109,13 @@ func (r *Runner) Run(resource Resource, args []Value) (Value, error) {
 	}
 
 	interp := NewInterpreter(nil, r.coreScope)
-	scriptTask := interp.Eval(ast, interp.globalScope)
+	scriptTask, err := interp.Run(ast)
+	if err != nil {
+		return Value{Type: TypeVoid}, err
+	}
 
 	if scriptTask.Type != TypeTask {
-		return Value{Type: TypeVoid}, fmt.Errorf("Script did not evaluate to a Task")
+		return Value{Type: TypeVoid}, CreateHankError(ScriptMustBeTask, nil, "", 0, "")
 	}
 
 	result := interp.Call(scriptTask, args, interp.globalScope)
