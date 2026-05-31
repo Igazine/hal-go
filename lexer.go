@@ -1,6 +1,7 @@
 package hank
 
 import (
+	"fmt"
 	"unicode"
 )
 
@@ -19,7 +20,6 @@ const (
 	TokenHash      // #
 	TokenNot       // !
 	TokenCaret     // ^
-	TokenDot       // .
 	TokenComma     // ,
 	
 	TokenLParen    // (
@@ -38,6 +38,7 @@ type Token struct {
 	Type     TokenType
 	Literal  string
 	Line     int
+	Column   int
 	LineText string
 }
 
@@ -106,7 +107,6 @@ func (l *Lexer) Tokenize() []Token {
 		case '#': l.addToken(TokenHash, "#")
 		case '!': l.addToken(TokenNot, "!")
 		case '^': l.addToken(TokenCaret, "^")
-		case '.': l.addToken(TokenDot, ".")
 		case ',': l.addToken(TokenComma, ",")
 		case '(': l.addToken(TokenLParen, "(")
 		case ')': l.addToken(TokenRParen, ")")
@@ -115,7 +115,7 @@ func (l *Lexer) Tokenize() []Token {
 		case '[': l.addToken(TokenLBracket, "[")
 		case ']': l.addToken(TokenRBracket, "]")
 		default:
-			l.addToken(TokenError, CreateHankError(UnexpectedCharacter, []interface{}{char}, "", 0, "").Message)
+			l.addToken(TokenError, CreateHankError(UnexpectedCharacter, []interface{}{char}, "", 0, 0, "").Message)
 		}
 		l.pos++
 	}
@@ -128,6 +128,7 @@ func (l *Lexer) addToken(t TokenType, lit string) {
 		Type:     t,
 		Literal:  lit,
 		Line:     l.line,
+		Column:   l.pos - len([]rune(lit)) - l.lineStart + 1,
 		LineText: l.getCurrentLineText(),
 	})
 }
@@ -150,10 +151,40 @@ func (l *Lexer) readNumber() {
 	if l.input[l.pos] == '-' {
 		l.pos++
 	}
-	for l.pos < len(l.input) && (unicode.IsDigit(l.input[l.pos]) || l.input[l.pos] == '.') {
+	dotCount := 0
+	for l.pos < len(l.input) {
+		char := l.input[l.pos]
+		if char == '.' {
+			if dotCount > 0 {
+				break
+			}
+			if l.pos+1 >= len(l.input) || !unicode.IsDigit(l.input[l.pos+1]) {
+				break
+			}
+			dotCount++
+		} else if !unicode.IsDigit(char) {
+			break
+		}
 		l.pos++
 	}
-	l.addToken(TokenNumber, string(l.input[start:l.pos]))
+
+	// Roll back trailing dots
+	for l.pos > start && l.input[l.pos-1] == '.' {
+		l.pos--
+	}
+
+	lit := string(l.input[start:l.pos])
+	l.addToken(TokenNumber, lit)
+
+	// Illegal identifier suffix check (e.g., 100a)
+	if l.pos < len(l.input) && (unicode.IsLetter(l.input[l.pos]) || l.input[l.pos] == '_') {
+		errStart := l.pos
+		for l.pos < len(l.input) && (unicode.IsLetter(l.input[l.pos]) || unicode.IsDigit(l.input[l.pos]) || l.input[l.pos] == '_') {
+			l.pos++
+		}
+		suffix := string(l.input[errStart:l.pos])
+		l.addToken(TokenError, fmt.Sprintf("Illegal identifier suffix after number: %s%s", lit, suffix))
+	}
 }
 
 func (l *Lexer) readIdentifier() {
@@ -183,7 +214,7 @@ func (l *Lexer) readString(quote rune) {
 		l.pos++
 	}
 	if l.pos >= len(l.input) {
-		l.addToken(TokenError, CreateHankError(UnclosedStringLiteral, nil, "", 0, "").Message)
+		l.addToken(TokenError, CreateHankError(UnclosedStringLiteral, nil, "", 0, 0, "").Message)
 		return
 	}
 	l.pos++ // skip quote

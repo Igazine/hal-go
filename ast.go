@@ -27,12 +27,6 @@ type IdentExpr struct {
 	Token  Token
 }
 
-type FieldExpr struct {
-	Collection Expr
-	FieldName  string
-	Token      Token
-}
-
 type FuncDefExpr struct {
 	Params []Param
 	Body   Expr
@@ -81,7 +75,6 @@ func (e *BlockExpr) isExpr()       {}
 func (e *AssignExpr) isExpr()      {}
 func (e *LiteralExpr) isExpr()     {}
 func (e *IdentExpr) isExpr()       {}
-func (e *FieldExpr) isExpr()       {}
 func (e *FuncDefExpr) isExpr()     {}
 func (e *FuncCallExpr) isExpr()    {}
 func (e *UnOpExpr) isExpr()        {}
@@ -94,7 +87,6 @@ func (e *BlockExpr) GetTokenData() Token       { return e.Token }
 func (e *AssignExpr) GetTokenData() Token      { return e.Token }
 func (e *LiteralExpr) GetTokenData() Token     { return e.Token }
 func (e *IdentExpr) GetTokenData() Token       { return e.Token }
-func (e *FieldExpr) GetTokenData() Token       { return e.Token }
 func (e *FuncDefExpr) GetTokenData() Token     { return e.Token }
 func (e *FuncCallExpr) GetTokenData() Token    { return e.Token }
 func (e *UnOpExpr) GetTokenData() Token        { return e.Token }

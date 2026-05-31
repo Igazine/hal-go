@@ -1,9 +1,5 @@
 package hank
 
-import (
-	"fmt"
-)
-
 /**
  * A Hank Host Runner.
  * Handles resource orchestration, macro resolution, and AST caching.
@@ -32,26 +28,21 @@ func (r *Runner) RegisterLocalization(m map[int]string) {
 	}
 }
 
-func (r *Runner) RegisterModule(name string, tasks map[string]NativeFunc) {
-	moduleObj := make(map[string]Value)
+func (r *Runner) RegisterTasks(tasks map[string]NativeFunc) {
 	for tName, fn := range tasks {
-		moduleObj[tName] = Value{
+		r.coreScope.Set(tName, Value{
 			Type: TypeTask,
 			Task: &TaskValue{
 				IsNative: true,
-				Name:     fmt.Sprintf("%s.%s", name, tName),
+				Name:     tName,
 				Native:   fn,
 			},
-		}
+		})
 	}
-	r.coreScope.Set(name, Value{Type: TypeMap, Map: moduleObj})
 }
 
 func (r *Runner) RegisterExtension(ext HankExtension) {
-	mods := ext.GetModules()
-	for name, tasks := range mods {
-		r.RegisterModule(name, tasks)
-	}
+	r.RegisterTasks(ext.GetTasks())
 }
 
 /**
@@ -70,7 +61,7 @@ func (r *Runner) Load(resource Resource, stack []string) (Expr, error) {
 	// Circular Dependency Check
 	for _, s := range stack {
 		if s == resource.ID() {
-			return nil, CreateHankError(CircularDependency, []interface{}{resource.ID()}, "", 0, "")
+			return nil, CreateHankError(CircularDependency, []interface{}{resource.ID()}, "", 0, 0, "")
 		}
 	}
 
@@ -132,7 +123,7 @@ func (r *Runner) Run(resource Resource, args []Value) (Value, error) {
 		if scriptTask.Type == TypeError {
 			return scriptTask, nil
 		}
-		return Value{Type: TypeVoid}, CreateHankError(ScriptMustBeTask, nil, "", 0, "")
+		return Value{Type: TypeVoid}, CreateHankError(ScriptMustBeTask, nil, "", 0, 0, "")
 	}
 
 	result := interp.Call(scriptTask, args, interp.globalScope)

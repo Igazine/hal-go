@@ -155,23 +155,6 @@ func (i *Interpreter) evalInScope(expr Expr, scope Scope) EvalResult {
 		}
 		return EvalResult{Type: ResultValue, Value: i.coreScope.Get(e.Name)}
 
-	case *FieldExpr:
-		res := i.evalInScope(e.Collection, scope)
-		if res.Type != ResultValue {
-			return res
-		}
-		coll := res.Value
-		if coll.Type == TypeMap {
-			if val, ok := coll.Map[e.FieldName]; ok {
-				return EvalResult{Type: ResultValue, Value: val}
-			}
-		} else if coll.Type == TypeArray && e.FieldName == "length" {
-			return EvalResult{Type: ResultValue, Value: Value{Type: TypeNumber, Number: float64(len(*coll.Array))}}
-		} else if coll.Type == TypeString && e.FieldName == "length" {
-			return EvalResult{Type: ResultValue, Value: Value{Type: TypeNumber, Number: float64(len(coll.String))}}
-		}
-		return EvalResult{Type: ResultValue, Value: Value{Type: TypeVoid}}
-
 	case *FuncDefExpr:
 		return EvalResult{Type: ResultValue, Value: Value{
 			Type: TypeTask,

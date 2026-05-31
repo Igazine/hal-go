@@ -76,7 +76,7 @@ type IHALSerializable interface {
 
 type HankExtension interface {
 	Name() string
-	GetModules() map[string]map[string]NativeFunc
+	GetTasks() map[string]NativeFunc
 }
 
 type HankError int
@@ -117,8 +117,12 @@ type ErrorValue struct {
 }
 
 type HankErrorValue struct {
-	Code    HankError
-	Message string
+	Code     HankError
+	Message  string
+	Filename string
+	Line     int
+	Column   int
+	LineText string
 }
 
 func (e *HankErrorValue) Error() string {

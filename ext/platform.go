@@ -28,98 +28,101 @@ func (e *PlatformExtension) Name() string {
 	return "PlatformExtension"
 }
 
-func (e *PlatformExtension) GetModules() map[string]map[string]hank.NativeFunc {
-	mods := make(map[string]map[string]hank.NativeFunc)
+func (e *PlatformExtension) GetTasks() map[string]hank.NativeFunc {
+	tasks := make(map[string]hank.NativeFunc)
 
-	mods["bin"] = map[string]hank.NativeFunc{
-		"and": func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
-			var a, b float64
-			if len(args) < 2 { return hank.Value{Type: hank.TypeVoid} }
-			if args[0].Type != hank.TypeNumber {
-				return hank.Value{Type: hank.TypeError, Error: &hank.ErrorValue{Code: hank.TypeMismatch, Args: []hank.Value{{Type: hank.TypeString, String: "Number"}, {Type: hank.TypeString, String: "Any"}, {Type: hank.TypeString, String: "bin.and"}}}}
-			}
-			if args[1].Type != hank.TypeNumber {
-				return hank.Value{Type: hank.TypeError, Error: &hank.ErrorValue{Code: hank.TypeMismatch, Args: []hank.Value{{Type: hank.TypeString, String: "Number"}, {Type: hank.TypeString, String: "Any"}, {Type: hank.TypeString, String: "bin.and"}}}}
-			}
-			a = args[0].Number
-			b = args[1].Number
+	tasks["bin_and"] = func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
+		var a, b float64
+		if len(args) < 2 { return hank.Value{Type: hank.TypeVoid} }
+		if args[0].Type != hank.TypeNumber {
+			return hank.Value{Type: hank.TypeError, Error: &hank.ErrorValue{Code: hank.TypeMismatch, Args: []hank.Value{{Type: hank.TypeString, String: "Number"}, {Type: hank.TypeString, String: "Any"}, {Type: hank.TypeString, String: "bin_and"}}}}
+		}
+		if args[1].Type != hank.TypeNumber {
+			return hank.Value{Type: hank.TypeError, Error: &hank.ErrorValue{Code: hank.TypeMismatch, Args: []hank.Value{{Type: hank.TypeString, String: "Number"}, {Type: hank.TypeString, String: "Any"}, {Type: hank.TypeString, String: "bin_and"}}}}
+		}
+		a = args[0].Number
+		b = args[1].Number
 
-			ia, err := checkSafeInt(a, "bin.and")
-			if err != nil { return *err }
-			ib, err := checkSafeInt(b, "bin.and")
-			if err != nil { return *err }
-			return fromSafeInt(ia & ib, "bin.and")
-		},
-		"or": func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
-			var a, b float64
-			if len(args) < 2 { return hank.Value{Type: hank.TypeVoid} }
-			if args[0].Type != hank.TypeNumber {
-				return hank.Value{Type: hank.TypeError, Error: &hank.ErrorValue{Code: hank.TypeMismatch, Args: []hank.Value{{Type: hank.TypeString, String: "Number"}, {Type: hank.TypeString, String: "Any"}, {Type: hank.TypeString, String: "bin.or"}}}}
-			}
-			if args[1].Type != hank.TypeNumber {
-				return hank.Value{Type: hank.TypeError, Error: &hank.ErrorValue{Code: hank.TypeMismatch, Args: []hank.Value{{Type: hank.TypeString, String: "Number"}, {Type: hank.TypeString, String: "Any"}, {Type: hank.TypeString, String: "bin.or"}}}}
-			}
-			a = args[0].Number
-			b = args[1].Number
-
-			ia, err := checkSafeInt(a, "bin.or")
-			if err != nil { return *err }
-			ib, err := checkSafeInt(b, "bin.or")
-			if err != nil { return *err }
-			return fromSafeInt(ia | ib, "bin.or")
-		},
-		"xor": func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
-			var a, b float64
-			if len(args) < 2 { return hank.Value{Type: hank.TypeVoid} }
-			if args[0].Type != hank.TypeNumber {
-				return hank.Value{Type: hank.TypeError, Error: &hank.ErrorValue{Code: hank.TypeMismatch, Args: []hank.Value{{Type: hank.TypeString, String: "Number"}, {Type: hank.TypeString, String: "Any"}, {Type: hank.TypeString, String: "bin.xor"}}}}
-			}
-			if args[1].Type != hank.TypeNumber {
-				return hank.Value{Type: hank.TypeError, Error: &hank.ErrorValue{Code: hank.TypeMismatch, Args: []hank.Value{{Type: hank.TypeString, String: "Number"}, {Type: hank.TypeString, String: "Any"}, {Type: hank.TypeString, String: "bin.xor"}}}}
-			}
-			a = args[0].Number
-			b = args[1].Number
-
-			ia, err := checkSafeInt(a, "bin.xor")
-			if err != nil { return *err }
-			ib, err := checkSafeInt(b, "bin.xor")
-			if err != nil { return *err }
-			return fromSafeInt(ia ^ ib, "bin.xor")
-		},
-		"not": func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
-			if len(args) == 0 || args[0].Type != hank.TypeNumber {
-				return hank.Value{Type: hank.TypeError, Error: &hank.ErrorValue{Code: hank.TypeMismatch, Args: []hank.Value{{Type: hank.TypeString, String: "Number"}, {Type: hank.TypeString, String: "Any"}, {Type: hank.TypeString, String: "bin.not"}}}}
-			}
-			a := args[0].Number
-			ia, err := checkSafeInt(a, "bin.not")
-			if err != nil { return *err }
-			return fromSafeInt(^ia, "bin.not")
-		},
-		"shiftL": func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
-			if len(args) < 2 { return hank.Value{Type: hank.TypeVoid} }
-			if args[0].Type != hank.TypeNumber || args[1].Type != hank.TypeNumber {
-				return hank.Value{Type: hank.TypeError, Error: &hank.ErrorValue{Code: hank.TypeMismatch, Args: []hank.Value{{Type: hank.TypeString, String: "Number"}, {Type: hank.TypeString, String: "Any"}, {Type: hank.TypeString, String: "bin.shiftL"}}}}
-			}
-			a := args[0].Number
-			b := args[1].Number
-
-			ia, err := checkSafeInt(a, "bin.shiftL")
-			if err != nil { return *err }
-			return fromSafeInt(ia << uint(b), "bin.shiftL")
-		},
-		"shiftR": func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
-			if len(args) < 2 { return hank.Value{Type: hank.TypeVoid} }
-			if args[0].Type != hank.TypeNumber || args[1].Type != hank.TypeNumber {
-				return hank.Value{Type: hank.TypeError, Error: &hank.ErrorValue{Code: hank.TypeMismatch, Args: []hank.Value{{Type: hank.TypeString, String: "Number"}, {Type: hank.TypeString, String: "Any"}, {Type: hank.TypeString, String: "bin.shiftR"}}}}
-			}
-			a := args[0].Number
-			b := args[1].Number
-
-			ia, err := checkSafeInt(a, "bin.shiftR")
-			if err != nil { return *err }
-			return fromSafeInt(ia >> uint(b), "bin.shiftR")
-		},
+		ia, err := checkSafeInt(a, "bin_and")
+		if err != nil { return *err }
+		ib, err := checkSafeInt(b, "bin_and")
+		if err != nil { return *err }
+		return fromSafeInt(ia & ib, "bin_and")
 	}
 
-	return mods
+	tasks["bin_or"] = func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
+		var a, b float64
+		if len(args) < 2 { return hank.Value{Type: hank.TypeVoid} }
+		if args[0].Type != hank.TypeNumber {
+			return hank.Value{Type: hank.TypeError, Error: &hank.ErrorValue{Code: hank.TypeMismatch, Args: []hank.Value{{Type: hank.TypeString, String: "Number"}, {Type: hank.TypeString, String: "Any"}, {Type: hank.TypeString, String: "bin_or"}}}}
+		}
+		if args[1].Type != hank.TypeNumber {
+			return hank.Value{Type: hank.TypeError, Error: &hank.ErrorValue{Code: hank.TypeMismatch, Args: []hank.Value{{Type: hank.TypeString, String: "Number"}, {Type: hank.TypeString, String: "Any"}, {Type: hank.TypeString, String: "bin_or"}}}}
+		}
+		a = args[0].Number
+		b = args[1].Number
+
+		ia, err := checkSafeInt(a, "bin_or")
+		if err != nil { return *err }
+		ib, err := checkSafeInt(b, "bin_or")
+		if err != nil { return *err }
+		return fromSafeInt(ia | ib, "bin_or")
+	}
+
+	tasks["bin_xor"] = func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
+		var a, b float64
+		if len(args) < 2 { return hank.Value{Type: hank.TypeVoid} }
+		if args[0].Type != hank.TypeNumber {
+			return hank.Value{Type: hank.TypeError, Error: &hank.ErrorValue{Code: hank.TypeMismatch, Args: []hank.Value{{Type: hank.TypeString, String: "Number"}, {Type: hank.TypeString, String: "Any"}, {Type: hank.TypeString, String: "bin_xor"}}}}
+		}
+		if args[1].Type != hank.TypeNumber {
+			return hank.Value{Type: hank.TypeError, Error: &hank.ErrorValue{Code: hank.TypeMismatch, Args: []hank.Value{{Type: hank.TypeString, String: "Number"}, {Type: hank.TypeString, String: "Any"}, {Type: hank.TypeString, String: "bin_xor"}}}}
+		}
+		a = args[0].Number
+		b = args[1].Number
+
+		ia, err := checkSafeInt(a, "bin_xor")
+		if err != nil { return *err }
+		ib, err := checkSafeInt(b, "bin_xor")
+		if err != nil { return *err }
+		return fromSafeInt(ia ^ ib, "bin_xor")
+	}
+
+	tasks["bin_not"] = func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
+		if len(args) == 0 || args[0].Type != hank.TypeNumber {
+			return hank.Value{Type: hank.TypeError, Error: &hank.ErrorValue{Code: hank.TypeMismatch, Args: []hank.Value{{Type: hank.TypeString, String: "Number"}, {Type: hank.TypeString, String: "Any"}, {Type: hank.TypeString, String: "bin_not"}}}}
+		}
+		a := args[0].Number
+		ia, err := checkSafeInt(a, "bin_not")
+		if err != nil { return *err }
+		return fromSafeInt(^ia, "bin_not")
+	}
+
+	tasks["bin_shiftL"] = func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
+		if len(args) < 2 { return hank.Value{Type: hank.TypeVoid} }
+		if args[0].Type != hank.TypeNumber || args[1].Type != hank.TypeNumber {
+			return hank.Value{Type: hank.TypeError, Error: &hank.ErrorValue{Code: hank.TypeMismatch, Args: []hank.Value{{Type: hank.TypeString, String: "Number"}, {Type: hank.TypeString, String: "Any"}, {Type: hank.TypeString, String: "bin_shiftL"}}}}
+		}
+		a := args[0].Number
+		b := args[1].Number
+
+		ia, err := checkSafeInt(a, "bin_shiftL")
+		if err != nil { return *err }
+		return fromSafeInt(ia << uint(b), "bin_shiftL")
+	}
+
+	tasks["bin_shiftR"] = func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
+		if len(args) < 2 { return hank.Value{Type: hank.TypeVoid} }
+		if args[0].Type != hank.TypeNumber || args[1].Type != hank.TypeNumber {
+			return hank.Value{Type: hank.TypeError, Error: &hank.ErrorValue{Code: hank.TypeMismatch, Args: []hank.Value{{Type: hank.TypeString, String: "Number"}, {Type: hank.TypeString, String: "Any"}, {Type: hank.TypeString, String: "bin_shiftR"}}}}
+		}
+		a := args[0].Number
+		b := args[1].Number
+
+		ia, err := checkSafeInt(a, "bin_shiftR")
+		if err != nil { return *err }
+		return fromSafeInt(ia >> uint(b), "bin_shiftR")
+	}
+
+	return tasks
 }

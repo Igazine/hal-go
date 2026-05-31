@@ -28,31 +28,38 @@ var HankErrorMessages = map[HankError]string{
 	TypeMismatch:                  "Type Mismatch: Expected %v, got %v in %v",
 }
 
-func CreateHankError(code HankError, args []interface{}, filename string, line int, lineText string) *HankErrorValue {
+func CreateHankError(code HankError, args []interface{}, filename string, line int, col int, lineText string) *HankErrorValue {
 	tmpl, ok := HankErrorMessages[code]
 	if !ok {
 		tmpl = "Unknown Error"
 	}
 
-	// Handle %v vs {i} mapping if needed, but for internal Go errors we use %v
+	// Handle %v vs {i} mapping
 	msg := tmpl
 	for i, arg := range args {
 		placeholder := fmt.Sprintf("{%d}", i)
-		if strings.Contains(msg, placeholder) {
-			msg = strings.ReplaceAll(msg, placeholder, fmt.Sprintf("%v", arg))
-		}
+		msg = strings.ReplaceAll(msg, placeholder, fmt.Sprintf("%v", arg))
 	}
-	// Fallback to fmt.Sprintf if placeholders weren't replaced
+	// Also support %v for backward compatibility with some internal error calls
 	if strings.Contains(msg, "%") {
-		msg = fmt.Sprintf(msg, args...)
+		// Attempt to format, but catch mismatches
+		formatted := msg
+		for _, arg := range args {
+			formatted = strings.Replace(formatted, "%v", fmt.Sprintf("%v", arg), 1)
+		}
+		msg = formatted
 	}
 
 	if filename != "" {
-		msg = fmt.Sprintf("ERROR: %s in %s at\n\t%d:\t%s", msg, filename, line, lineText)
+		msg = fmt.Sprintf("ERROR: %s in %s at %d:%d\n\t%d:\t%s", msg, filename, line, col, line, lineText)
 	}
 
 	return &HankErrorValue{
-		Code:    code,
-		Message: msg,
+		Code:     code,
+		Message:  msg,
+		Filename: filename,
+		Line:     line,
+		Column:   col,
+		LineText: lineText,
 	}
 }

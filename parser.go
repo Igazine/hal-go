@@ -198,8 +198,6 @@ func (p *Parser) parsePrimary() (Expr, error) {
 			}
 			p.consume(TokenRParen)
 		}
-	case TokenLBrace:
-		expr, err = p.parseBlock()
 	case TokenNot:
 		p.pos++
 		target, err := p.parsePrimary()
@@ -243,10 +241,7 @@ func (p *Parser) finishPrimary(expr Expr) (Expr, error) {
 			break
 		}
 		td := p.peekTd()
-		if td.Type == TokenDot {
-			p.consume(TokenDot)
-			expr = &FieldExpr{Collection: expr, FieldName: p.consumeIdentifier(), Token: td}
-		} else if td.Type == TokenLParen {
+		if td.Type == TokenLParen {
 			args, err := p.parseArgList()
 			if err != nil {
 				return nil, err
@@ -553,5 +548,5 @@ func (p *Parser) isEof() bool {
 
 func (p *Parser) error(code HankError, args ...interface{}) error {
 	td := p.peekTd()
-	return CreateHankError(code, args, p.filename, td.Line, td.LineText)
+	return CreateHankError(code, args, p.filename, td.Line, td.Column, td.LineText)
 }

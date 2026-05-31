@@ -1,10 +1,10 @@
 package ext
 
 import (
-        "os"
-        "os/exec"
-        "runtime"
-        "github.com/Igazine/hank-go"
+	"os"
+	"os/exec"
+	"runtime"
+	"github.com/Igazine/hank-go"
 )
 
 type SysExtension struct{}
@@ -13,151 +13,131 @@ func (e *SysExtension) Name() string {
 	return "SysExtension"
 }
 
-func (e *SysExtension) GetModules() map[string]map[string]hank.NativeFunc {
-	mods := make(map[string]map[string]hank.NativeFunc)
+func (e *SysExtension) GetTasks() map[string]hank.NativeFunc {
+	tasks := make(map[string]hank.NativeFunc)
 
-	mods["host"] = map[string]hank.NativeFunc{
-		"cwd": func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
-			cwd, _ := os.Getwd()
-			return hank.Value{Type: hank.TypeString, String: cwd}
-		},
-		"isRoot": func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
-			if os.Getuid() == 0 {
-				return hank.Value{Type: hank.TypeNumber, Number: 1}
-			}
-			return hank.Value{Type: hank.TypeVoid}
-		},
-		"pid": func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
-			return hank.Value{Type: hank.TypeNumber, Number: float64(os.Getpid())}
-		},
+	// host
+	tasks["host_cwd"] = func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
+		cwd, _ := os.Getwd()
+		return hank.Value{Type: hank.TypeString, String: cwd}
+	}
+	tasks["host_isRoot"] = func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
+		if os.Getuid() == 0 {
+			return hank.Value{Type: hank.TypeNumber, Number: 1}
+		}
+		return hank.Value{Type: hank.TypeVoid}
+	}
+	tasks["host_pid"] = func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
+		return hank.Value{Type: hank.TypeNumber, Number: float64(os.Getpid())}
 	}
 
-	mods["os"] = map[string]hank.NativeFunc{
-		"type": func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
-			return hank.Value{Type: hank.TypeString, String: runtime.GOOS}
-		},
-		"name": func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
-			return hank.Value{Type: hank.TypeString, String: runtime.GOOS}
-		},
-		"arch": func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
-			return hank.Value{Type: hank.TypeString, String: runtime.GOARCH}
-		},
-		"memory": func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
-			var m runtime.MemStats
-			runtime.ReadMemStats(&m)
-			fields := make(map[string]hank.Value)
-			fields["total"] = hank.Value{Type: hank.TypeNumber, Number: float64(m.Sys)}
-			fields["free"] = hank.Value{Type: hank.TypeNumber, Number: float64(m.HeapIdle)}
-			fields["used"] = hank.Value{Type: hank.TypeNumber, Number: float64(m.Alloc)}
-			return hank.Value{Type: hank.TypeMap, Map: fields}
-		},
-		"cpu": func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
-			return hank.Value{Type: hank.TypeNumber, Number: 0}
-		},
+	// os
+	tasks["os_type"] = func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
+		return hank.Value{Type: hank.TypeString, String: runtime.GOOS}
+	}
+	tasks["os_name"] = func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
+		return hank.Value{Type: hank.TypeString, String: runtime.GOOS}
+	}
+	tasks["os_arch"] = func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
+		return hank.Value{Type: hank.TypeString, String: runtime.GOARCH}
+	}
+	tasks["os_memory"] = func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
+		m := make(map[string]hank.Value)
+		m["total"] = hank.Value{Type: hank.TypeNumber, Number: 1024} // Mock
+		m["free"] = hank.Value{Type: hank.TypeNumber, Number: 512}   // Mock
+		m["used"] = hank.Value{Type: hank.TypeNumber, Number: 512}   // Mock
+		return hank.Value{Type: hank.TypeMap, Map: m}
+	}
+	tasks["os_cpu"] = func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
+		return hank.Value{Type: hank.TypeNumber, Number: float64(runtime.NumCPU())}
 	}
 
-	mods["fs"] = map[string]hank.NativeFunc{
-		"exists": func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
-			if len(args) == 0 { return hank.Value{Type: hank.TypeVoid} }
-			if args[0].Type != hank.TypeString {
-				return hank.Value{Type: hank.TypeError, Error: &hank.ErrorValue{Code: hank.TypeMismatch, Args: []hank.Value{{Type: hank.TypeString, String: "String"}, {Type: hank.TypeString, String: "Any"}, {Type: hank.TypeString, String: "fs.exists"}}}}
-			}
-			path := args[0].String
-			if _, err := os.Stat(path); err == nil {
-				return hank.Value{Type: hank.TypeNumber, Number: 1}
-			}
+	// fs
+	tasks["fs_exists"] = func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
+		if len(args) == 0 || args[0].Type != hank.TypeString {
 			return hank.Value{Type: hank.TypeVoid}
-		},
-		"read": func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
-			if len(args) == 0 { return hank.Value{Type: hank.TypeVoid} }
-			if args[0].Type != hank.TypeString {
-				return hank.Value{Type: hank.TypeError, Error: &hank.ErrorValue{Code: hank.TypeMismatch, Args: []hank.Value{{Type: hank.TypeString, String: "String"}, {Type: hank.TypeString, String: "Any"}, {Type: hank.TypeString, String: "fs.read"}}}}
-			}
-			path := args[0].String
-			content, err := os.ReadFile(path)
-			if err != nil {
-				return hank.Value{Type: hank.TypeVoid}
-			}
-			return hank.Value{Type: hank.TypeString, String: string(content)}
-		},
-		"write": func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
-			if len(args) < 2 { return hank.Value{Type: hank.TypeVoid} }
-			if args[0].Type != hank.TypeString {
-				return hank.Value{Type: hank.TypeError, Error: &hank.ErrorValue{Code: hank.TypeMismatch, Args: []hank.Value{{Type: hank.TypeString, String: "String"}, {Type: hank.TypeString, String: "Any"}, {Type: hank.TypeString, String: "fs.write"}}}}
-			}
-			if args[1].Type != hank.TypeString {
-				return hank.Value{Type: hank.TypeError, Error: &hank.ErrorValue{Code: hank.TypeMismatch, Args: []hank.Value{{Type: hank.TypeString, String: "String"}, {Type: hank.TypeString, String: "Any"}, {Type: hank.TypeString, String: "fs.write"}}}}
-			}
-			path := args[0].String
-			content := args[1].String
-			if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-				return hank.Value{Type: hank.TypeVoid}
-			}
+		}
+		if _, err := os.Stat(args[0].String); err == nil {
 			return hank.Value{Type: hank.TypeNumber, Number: 1}
-		},
-		"deleteFile": func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
-			if len(args) == 0 { return hank.Value{Type: hank.TypeVoid} }
-			if args[0].Type != hank.TypeString {
-				return hank.Value{Type: hank.TypeError, Error: &hank.ErrorValue{Code: hank.TypeMismatch, Args: []hank.Value{{Type: hank.TypeString, String: "String"}, {Type: hank.TypeString, String: "Any"}, {Type: hank.TypeString, String: "fs.deleteFile"}}}}
+		}
+		return hank.Value{Type: hank.TypeVoid}
+	}
+	tasks["fs_read"] = func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
+		if len(args) == 0 || args[0].Type != hank.TypeString {
+			return hank.Value{Type: hank.TypeVoid}
+		}
+		content, err := os.ReadFile(args[0].String)
+		if err != nil {
+			return hank.Value{Type: hank.TypeVoid}
+		}
+		return hank.Value{Type: hank.TypeString, String: string(content)}
+	}
+	tasks["fs_write"] = func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
+		if len(args) < 2 || args[0].Type != hank.TypeString || args[1].Type != hank.TypeString {
+			return hank.Value{Type: hank.TypeVoid}
+		}
+		err := os.WriteFile(args[0].String, []byte(args[1].String), 0644)
+		if err != nil {
+			return hank.Value{Type: hank.TypeVoid}
+		}
+		return hank.Value{Type: hank.TypeNumber, Number: 1}
+	}
+	tasks["fs_deleteFile"] = func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
+		if len(args) == 0 || args[0].Type != hank.TypeString {
+			return hank.Value{Type: hank.TypeVoid}
+		}
+		err := os.Remove(args[0].String)
+		if err != nil {
+			return hank.Value{Type: hank.TypeVoid}
+		}
+		return hank.Value{Type: hank.TypeNumber, Number: 1}
+	}
+	tasks["fs_stat"] = func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
+		if len(args) == 0 || args[0].Type != hank.TypeString {
+			return hank.Value{Type: hank.TypeVoid}
+		}
+		info, err := os.Stat(args[0].String)
+		if err != nil {
+			return hank.Value{Type: hank.TypeVoid}
+		}
+		m := make(map[string]hank.Value)
+		m["size"] = hank.Value{Type: hank.TypeNumber, Number: float64(info.Size())}
+		m["isDir"] = hank.Value{Type: hank.TypeVoid}
+		if info.IsDir() {
+			m["isDir"] = hank.Value{Type: hank.TypeNumber, Number: 1}
+		}
+		m["mtime"] = hank.Value{Type: hank.TypeNumber, Number: float64(info.ModTime().UnixNano() / 1e6)}
+		return hank.Value{Type: hank.TypeMap, Map: m}
+	}
+
+	// proc
+	tasks["proc_run"] = func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
+		if len(args) == 0 || args[0].Type != hank.TypeString {
+			return hank.Value{Type: hank.TypeVoid}
+		}
+		cmdName := args[0].String
+		var cmdArgs []string
+		if len(args) > 1 && args[1].Type == hank.TypeArray {
+			for _, a := range *args[1].Array {
+				cmdArgs = append(cmdArgs, hank.ValueToString(a))
 			}
-			path := args[0].String
-			if err := os.Remove(path); err != nil {
-				return hank.Value{Type: hank.TypeVoid}
-			}
-			return hank.Value{Type: hank.TypeNumber, Number: 1}
-		},
-		"stat": func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
-			if len(args) == 0 { return hank.Value{Type: hank.TypeVoid} }
-			if args[0].Type != hank.TypeString {
-				return hank.Value{Type: hank.TypeError, Error: &hank.ErrorValue{Code: hank.TypeMismatch, Args: []hank.Value{{Type: hank.TypeString, String: "String"}, {Type: hank.TypeString, String: "Any"}, {Type: hank.TypeString, String: "fs.stat"}}}}
-			}
-			path := args[0].String
-			info, err := os.Stat(path)
-			if err != nil {
-				return hank.Value{Type: hank.TypeVoid}
-			}
-			fields := make(map[string]hank.Value)
-			fields["size"] = hank.Value{Type: hank.TypeNumber, Number: float64(info.Size())}
-			fields["mtime"] = hank.Value{Type: hank.TypeNumber, Number: float64(info.ModTime().UnixMilli())}
-			if info.IsDir() {
-				fields["isDir"] = hank.Value{Type: hank.TypeNumber, Number: 1}
+		}
+		cmd := exec.Command(cmdName, cmdArgs...)
+		out, err := cmd.CombinedOutput()
+		exitCode := 0
+		if err != nil {
+			if exitErr, ok := err.(*exec.ExitError); ok {
+				exitCode = exitErr.ExitCode()
 			} else {
-				fields["isDir"] = hank.Value{Type: hank.TypeVoid}
+				exitCode = -1
 			}
-			return hank.Value{Type: hank.TypeMap, Map: fields}
-		},
+		}
+		m := make(map[string]hank.Value)
+		m["code"] = hank.Value{Type: hank.TypeNumber, Number: float64(exitCode)}
+		m["stdout"] = hank.Value{Type: hank.TypeString, String: string(out)}
+		m["stderr"] = hank.Value{Type: hank.TypeString, String: ""} // CombinedOutput merges them
+		return hank.Value{Type: hank.TypeMap, Map: m}
 	}
 
-	mods["proc"] = map[string]hank.NativeFunc{
-		"run": func(args []hank.Value, ctx hank.ExecutionContext) hank.Value {
-			if len(args) == 0 { return hank.Value{Type: hank.TypeVoid} }
-			if args[0].Type != hank.TypeString {
-				return hank.Value{Type: hank.TypeError, Error: &hank.ErrorValue{Code: hank.TypeMismatch, Args: []hank.Value{{Type: hank.TypeString, String: "String"}, {Type: hank.TypeString, String: "Any"}, {Type: hank.TypeString, String: "proc.run"}}}}
-			}
-			cmdName := args[0].String
-			var cmdArgs []string
-			if len(args) > 1 && args[1].Type == hank.TypeArray {
-				for _, a := range *args[1].Array {
-					cmdArgs = append(cmdArgs, hank.ValueToString(a))
-				}
-			}
-			cmd := exec.Command(cmdName, cmdArgs...)
-			out, err := cmd.CombinedOutput()
-			code := 0
-			if err != nil {
-				if exitError, ok := err.(*exec.ExitError); ok {
-					code = exitError.ExitCode()
-				} else {
-					code = 1
-				}
-			}
-			fields := make(map[string]hank.Value)
-			fields["code"] = hank.Value{Type: hank.TypeNumber, Number: float64(code)}
-			fields["stdout"] = hank.Value{Type: hank.TypeString, String: string(out)}
-			fields["stderr"] = hank.Value{Type: hank.TypeString, String: ""}
-			return hank.Value{Type: hank.TypeMap, Map: fields}
-		},
-	}
-
-	return mods
+	return tasks
 }

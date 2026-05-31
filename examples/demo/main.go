@@ -41,6 +41,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	if result.Type == hank.TypeError {
+		fmt.Printf("Runtime Error %d: %s\n", result.Error.Code, result.Error)
+		os.Exit(1)
+	}
+
 	if result.Type == hank.TypeNumber {
 		os.Exit(int(result.Number))
 	}
@@ -98,9 +103,11 @@ func runConformance(root string) {
 		if strings.HasSuffix(t, "08_host_args.hank") {
 			args = append(args, hank.Value{Type: hank.TypeString, String: "Tamas"})
 		}
-		_, err := r.Run(res, args)
+		hres, err := r.Run(res, args)
 		if err != nil {
 			fmt.Printf("Test Failed: %v\n", err)
+		} else if hres.Type == hank.TypeError {
+			fmt.Printf("Test Runtime Error %d: %s\n", hres.Error.Code, hres.Error)
 		}
 		fmt.Printf("--------------------\n\n")
 	}
@@ -116,9 +123,11 @@ func runConformance(root string) {
 		r := createRunner()
 		path, _ := filepath.Abs(filepath.Join(root, t))
 		res := NewFileResource(path)
-		_, err := r.Run(res, []hank.Value{})
+		eres, err := r.Run(res, []hank.Value{})
 		if err != nil {
 			fmt.Printf("Extension Test Failed: %v\n", err)
+		} else if eres.Type == hank.TypeError {
+			fmt.Printf("Extension Runtime Error %d: %s\n", eres.Error.Code, eres.Error)
 		}
 		fmt.Printf("--------------------\n\n")
 	}

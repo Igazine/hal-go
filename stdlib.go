@@ -16,8 +16,8 @@ func (s *StdLib) Name() string {
 	return "StdLib"
 }
 
-func (s *StdLib) GetModules() map[string]map[string]NativeFunc {
-	return GetStdlibModules()
+func (s *StdLib) GetTasks() map[string]NativeFunc {
+	return GetStdlibTasks()
 }
 
 func hankEquals(a, b Value) bool {
@@ -69,534 +69,534 @@ func hankEquals(a, b Value) bool {
 	}
 }
 
-func GetStdlibModules() map[string]map[string]NativeFunc {
-	mods := make(map[string]map[string]NativeFunc)
+func GetStdlibTasks() map[string]NativeFunc {
+	tasks := make(map[string]NativeFunc)
 
-	mods["log"] = map[string]NativeFunc{
-		"print": func(args []Value, ctx ExecutionContext) Value {
-			var strs []string
-			for _, a := range args {
-				strs = append(strs, ValueToString(a))
-			}
-			fmt.Println(strings.Join(strs, " "))
-			return Value{Type: TypeVoid}
-		},
-		"error": func(args []Value, ctx ExecutionContext) Value {
-			var strs []string
-			for _, a := range args {
-				strs = append(strs, ValueToString(a))
-			}
-			fmt.Fprintf(os.Stderr, "%s\n", strings.Join(strs, " "))
-			return Value{Type: TypeVoid}
-		},
-		"warn": func(args []Value, ctx ExecutionContext) Value {
-			var strs []string
-			for _, a := range args {
-				strs = append(strs, ValueToString(a))
-			}
-			fmt.Printf("WARNING: %s\n", strings.Join(strs, " "))
-			return Value{Type: TypeVoid}
-		},
+	// log
+	tasks["log_print"] = func(args []Value, ctx ExecutionContext) Value {
+		var strs []string
+		for _, a := range args {
+			strs = append(strs, ValueToString(a))
+		}
+		fmt.Println(strings.Join(strs, " "))
+		return Value{Type: TypeVoid}
+	}
+	tasks["log_error"] = func(args []Value, ctx ExecutionContext) Value {
+		var strs []string
+		for _, a := range args {
+			strs = append(strs, ValueToString(a))
+		}
+		fmt.Fprintf(os.Stderr, "%s\n", strings.Join(strs, " "))
+		return Value{Type: TypeVoid}
+	}
+	tasks["log_warn"] = func(args []Value, ctx ExecutionContext) Value {
+		var strs []string
+		for _, a := range args {
+			strs = append(strs, ValueToString(a))
+		}
+		fmt.Printf("WARNING: %s\n", strings.Join(strs, " "))
+		return Value{Type: TypeVoid}
 	}
 
-	mods["runtime"] = map[string]NativeFunc{
-		"halt": func(args []Value, ctx ExecutionContext) Value {
-			code := 0
-			if len(args) > 0 && args[0].Type == TypeNumber {
-				code = int(args[0].Number)
-			}
-			os.Exit(code)
+	// runtime
+	tasks["runtime_halt"] = func(args []Value, ctx ExecutionContext) Value {
+		code := 0
+		if len(args) > 0 && args[0].Type == TypeNumber {
+			code = int(args[0].Number)
+		}
+		os.Exit(code)
+		return Value{Type: TypeVoid}
+	}
+	tasks["runtime_elapsedTime"] = func(args []Value, ctx ExecutionContext) Value {
+		return Value{Type: TypeNumber, Number: float64(time.Now().UnixNano() / 1e6)}
+	}
+	tasks["runtime_signal"] = func(args []Value, ctx ExecutionContext) Value {
+		if len(args) > 0 {
+			fmt.Printf("[SIGNAL] %v\n", ValueToString(args[0]))
+		}
+		return Value{Type: TypeVoid}
+	}
+
+	// loop
+	tasks["loop_while"] = func(args []Value, ctx ExecutionContext) Value {
+		if len(args) < 2 {
 			return Value{Type: TypeVoid}
-		},
-		"elapsedTime": func(args []Value, ctx ExecutionContext) Value {
-			return Value{Type: TypeNumber, Number: float64(time.Now().UnixNano() / 1e6)}
-		},
-		"signal": func(args []Value, ctx ExecutionContext) Value {
-			if len(args) > 0 {
-				fmt.Printf("[SIGNAL] %v\n", ValueToString(args[0]))
+		}
+		cond := args[0]
+		body := args[1]
+		var last Value = Value{Type: TypeVoid}
+		for {
+			condVal := ctx.Call(cond, []Value{})
+			if ctx.IsError(condVal) {
+				return condVal
 			}
+			if condVal.Type == TypeVoid {
+				break
+			}
+			res := ctx.Call(body, []Value{})
+			if res.Type == TypeOpaque && res.Opaque.Label == "__ControlFlow" && fmt.Sprintf("%v", res.Opaque.Data) == "Break" {
+				break
+			}
+			if ctx.IsError(res) {
+				return res
+			}
+			last = res
+		}
+		return last
+	}
+	tasks["loop_break"] = func(args []Value, ctx ExecutionContext) Value {
+		return Value{Type: TypeOpaque, Opaque: &OpaqueValue{Label: "__ControlFlow", Data: "Break"}}
+	}
+
+	// env
+	tasks["env_get"] = func(args []Value, ctx ExecutionContext) Value {
+		return Value{Type: TypeVoid}
+	}
+	tasks["env_set"] = func(args []Value, ctx ExecutionContext) Value {
+		return Value{Type: TypeVoid}
+	}
+	tasks["env_keys"] = func(args []Value, ctx ExecutionContext) Value {
+		return Value{Type: TypeArray, Array: &[]Value{}}
+	}
+
+	// str
+	tasks["str_length"] = func(args []Value, ctx ExecutionContext) Value {
+		if len(args) == 0 {
 			return Value{Type: TypeVoid}
-		},
+		}
+		if args[0].Type != TypeString {
+			return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "String"}, {Type: TypeString, String: typeToString(args[0].Type)}, {Type: TypeString, String: "str_length"}}}}
+		}
+		return Value{Type: TypeNumber, Number: float64(len(args[0].String))}
 	}
-
-	mods["loop"] = map[string]NativeFunc{
-		"while": func(args []Value, ctx ExecutionContext) Value {
-			if len(args) < 2 {
-				return Value{Type: TypeVoid}
-			}
-			cond := args[0]
-			body := args[1]
-			var last Value = Value{Type: TypeVoid}
-			for {
-				condVal := ctx.Call(cond, []Value{})
-				if ctx.IsError(condVal) {
-					return condVal
-				}
-				if condVal.Type == TypeVoid {
-					break
-				}
-				res := ctx.Call(body, []Value{})
-				if res.Type == TypeOpaque && res.Opaque.Label == "__ControlFlow" && fmt.Sprintf("%v", res.Opaque.Data) == "Break" {
-					break
-				}
-				if ctx.IsError(res) {
-					return res
-				}
-				last = res
-			}
-			return last
-		},
-		"break": func(args []Value, ctx ExecutionContext) Value {
-			return Value{Type: TypeOpaque, Opaque: &OpaqueValue{Label: "__ControlFlow", Data: "Break"}}
-		},
-	}
-
-	mods["env"] = map[string]NativeFunc{
-		"get": func(args []Value, ctx ExecutionContext) Value {
+	tasks["str_format"] = func(args []Value, ctx ExecutionContext) Value {
+		if len(args) == 0 {
 			return Value{Type: TypeVoid}
-		},
-		"set": func(args []Value, ctx ExecutionContext) Value {
+		}
+		template := ValueToString(args[0])
+		res := template
+		for i := 1; i < len(args); i++ {
+			placeholder := fmt.Sprintf("%%%d", i)
+			res = strings.ReplaceAll(res, placeholder, ValueToString(args[i]))
+		}
+		return Value{Type: TypeString, String: res}
+	}
+	tasks["str_concat"] = func(args []Value, ctx ExecutionContext) Value {
+		var res strings.Builder
+		for _, a := range args {
+			res.WriteString(ValueToString(a))
+		}
+		return Value{Type: TypeString, String: res.String()}
+	}
+	tasks["str_trim"] = func(args []Value, ctx ExecutionContext) Value {
+		if len(args) == 0 {
 			return Value{Type: TypeVoid}
-		},
-		"keys": func(args []Value, ctx ExecutionContext) Value {
-			return Value{Type: TypeArray, Array: &[]Value{}}
-		},
+		}
+		if args[0].Type != TypeString {
+			return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "String"}, {Type: TypeString, String: typeToString(args[0].Type)}, {Type: TypeString, String: "str_trim"}}}}
+		}
+		return Value{Type: TypeString, String: strings.TrimSpace(args[0].String)}
 	}
 
-	mods["str"] = map[string]NativeFunc{
-		"length": func(args []Value, ctx ExecutionContext) Value {
-			if len(args) == 0 {
-				return Value{Type: TypeVoid}
-			}
-			if args[0].Type != TypeString {
-				return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "String"}, {Type: TypeString, String: typeToString(args[0].Type)}, {Type: TypeString, String: "str.length"}}}}
-			}
-			return Value{Type: TypeNumber, Number: float64(len(args[0].String))}
-		},
-		"format": func(args []Value, ctx ExecutionContext) Value {
-			if len(args) == 0 {
-				return Value{Type: TypeVoid}
-			}
-			template := ValueToString(args[0])
-			res := template
-			for i := 1; i < len(args); i++ {
-				placeholder := fmt.Sprintf("%%%d", i)
-				res = strings.ReplaceAll(res, placeholder, ValueToString(args[i]))
-			}
-			return Value{Type: TypeString, String: res}
-		},
-		"concat": func(args []Value, ctx ExecutionContext) Value {
-			var res strings.Builder
-			for _, a := range args {
-				res.WriteString(ValueToString(a))
-			}
-			return Value{Type: TypeString, String: res.String()}
-		},
-		"trim": func(args []Value, ctx ExecutionContext) Value {
-			if len(args) == 0 {
-				return Value{Type: TypeVoid}
-			}
-			if args[0].Type != TypeString {
-				return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "String"}, {Type: TypeString, String: typeToString(args[0].Type)}, {Type: TypeString, String: "str.trim"}}}}
-			}
-			return Value{Type: TypeString, String: strings.TrimSpace(args[0].String)}
-		},
-	}
-
-	mods["num"] = map[string]NativeFunc{
-		"parse": func(args []Value, ctx ExecutionContext) Value {
-			if len(args) == 0 {
-				return Value{Type: TypeVoid}
-			}
-			s := ValueToString(args[0])
-			base := 0
-			if len(args) > 1 && args[1].Type == TypeNumber {
-				base = int(args[1].Number)
-			}
-			val, err := strconv.ParseInt(s, base, 64)
-			if err != nil {
-				if base == 0 || base == 10 {
-					fval, err := strconv.ParseFloat(s, 64)
-					if err == nil {
-						return Value{Type: TypeNumber, Number: fval}
-					}
-				}
-				return Value{Type: TypeVoid}
-			}
-			return Value{Type: TypeNumber, Number: float64(val)}
-		},
-		"format": func(args []Value, ctx ExecutionContext) Value {
-			if len(args) == 0 || args[0].Type != TypeNumber {
-				return Value{Type: TypeVoid}
-			}
-			n := int64(args[0].Number)
-			base := 10
-			if len(args) > 1 && args[1].Type == TypeNumber {
-				base = int(args[1].Number)
-			}
-			if base < 2 || base > 36 {
-				return Value{Type: TypeVoid}
-			}
-			return Value{Type: TypeString, String: strconv.FormatInt(n, base)}
-		},
-	}
-
-	mods["regex"] = map[string]NativeFunc{
-		"parse": func(args []Value, ctx ExecutionContext) Value {
-			if len(args) == 0 {
-				return Value{Type: TypeVoid}
-			}
-			pattern := ValueToString(args[0])
-			flags := ""
-			if len(args) > 1 {
-				flags = ValueToString(args[1])
-			}
-			goFlags := ""
-			if strings.Contains(flags, "i") {
-				goFlags += "i"
-			}
-			if strings.Contains(flags, "m") {
-				goFlags += "m"
-			}
-			finalPattern := pattern
-			if goFlags != "" {
-				finalPattern = "(?" + goFlags + ")" + pattern
-			}
-			re, err := regexp.Compile(finalPattern)
-			if err != nil {
-				return Value{Type: TypeVoid}
-			}
-			return Value{Type: TypeOpaque, Opaque: &OpaqueValue{Label: "RegExp", Data: re}}
-		},
-		"match": func(args []Value, ctx ExecutionContext) Value {
-			if len(args) < 2 {
-				return Value{Type: TypeVoid}
-			}
-			s := ValueToString(args[0])
-			patternVal := args[1]
-			if patternVal.Type == TypeOpaque && patternVal.Opaque.Label == "RegExp" {
-				re := patternVal.Opaque.Data.(*regexp.Regexp)
-				if re.MatchString(s) {
-					return Value{Type: TypeNumber, Number: 1}
-				}
-			} else {
-				if strings.Contains(s, ValueToString(patternVal)) {
-					return Value{Type: TypeNumber, Number: 1}
+	// num
+	tasks["num_parse"] = func(args []Value, ctx ExecutionContext) Value {
+		if len(args) == 0 {
+			return Value{Type: TypeVoid}
+		}
+		s := ValueToString(args[0])
+		base := 0
+		if len(args) > 1 && args[1].Type == TypeNumber {
+			base = int(args[1].Number)
+		}
+		val, err := strconv.ParseInt(s, base, 64)
+		if err != nil {
+			if base == 0 || base == 10 {
+				fval, err := strconv.ParseFloat(s, 64)
+				if err == nil {
+					return Value{Type: TypeNumber, Number: fval}
 				}
 			}
 			return Value{Type: TypeVoid}
-		},
+		}
+		return Value{Type: TypeNumber, Number: float64(val)}
+	}
+	tasks["num_format"] = func(args []Value, ctx ExecutionContext) Value {
+		if len(args) == 0 || args[0].Type != TypeNumber {
+			return Value{Type: TypeVoid}
+		}
+		n := int64(args[0].Number)
+		base := 10
+		if len(args) > 1 && args[1].Type == TypeNumber {
+			base = int(args[1].Number)
+		}
+		if base < 2 || base > 36 {
+			return Value{Type: TypeVoid}
+		}
+		return Value{Type: TypeString, String: strconv.FormatInt(n, base)}
 	}
 
-	mods["math"] = map[string]NativeFunc{
-		"add": func(args []Value, ctx ExecutionContext) Value {
-			res := 0.0
-			for _, a := range args {
-				if a.Type != TypeNumber {
-					return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Number"}, {Type: TypeString, String: typeToString(a.Type)}, {Type: TypeString, String: "math.add"}}}}
-				}
-				res += a.Number
-			}
-			return Value{Type: TypeNumber, Number: res}
-		},
-		"sub": func(args []Value, ctx ExecutionContext) Value {
-			if len(args) < 2 {
-				return Value{Type: TypeVoid}
-			}
-			if args[0].Type != TypeNumber {
-				return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Number"}, {Type: TypeString, String: typeToString(args[0].Type)}, {Type: TypeString, String: "math.sub"}}}}
-			}
-			if args[1].Type != TypeNumber {
-				return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Number"}, {Type: TypeString, String: typeToString(args[1].Type)}, {Type: TypeString, String: "math.sub"}}}}
-			}
-			return Value{Type: TypeNumber, Number: args[0].Number - args[1].Number}
-		},
-		"mul": func(args []Value, ctx ExecutionContext) Value {
-			res := 1.0
-			if len(args) == 0 {
-				return Value{Type: TypeNumber, Number: 0}
-			}
-			for _, a := range args {
-				if a.Type != TypeNumber {
-					return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Number"}, {Type: TypeString, String: typeToString(a.Type)}, {Type: TypeString, String: "math.mul"}}}}
-				}
-				res *= a.Number
-			}
-			return Value{Type: TypeNumber, Number: res}
-		},
-		"div": func(args []Value, ctx ExecutionContext) Value {
-			if len(args) < 2 {
-				return Value{Type: TypeVoid}
-			}
-			if args[0].Type != TypeNumber {
-				return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Number"}, {Type: TypeString, String: typeToString(args[0].Type)}, {Type: TypeString, String: "math.div"}}}}
-			}
-			if args[1].Type != TypeNumber {
-				return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Number"}, {Type: TypeString, String: typeToString(args[1].Type)}, {Type: TypeString, String: "math.div"}}}}
-			}
-			if args[1].Number == 0 {
-				return Value{Type: TypeVoid}
-			}
-			return Value{Type: TypeNumber, Number: args[0].Number / args[1].Number}
-		},
-		"gt": func(args []Value, ctx ExecutionContext) Value {
-			if len(args) < 2 {
-				return Value{Type: TypeVoid}
-			}
-			if args[0].Type != TypeNumber {
-				return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Number"}, {Type: TypeString, String: typeToString(args[0].Type)}, {Type: TypeString, String: "math.gt"}}}}
-			}
-			if args[1].Type != TypeNumber {
-				return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Number"}, {Type: TypeString, String: typeToString(args[1].Type)}, {Type: TypeString, String: "math.gt"}}}}
-			}
-			if args[0].Number > args[1].Number {
+	// regex
+	tasks["regex_parse"] = func(args []Value, ctx ExecutionContext) Value {
+		if len(args) == 0 {
+			return Value{Type: TypeVoid}
+		}
+		pattern := ValueToString(args[0])
+		flags := ""
+		if len(args) > 1 {
+			flags = ValueToString(args[1])
+		}
+		goFlags := ""
+		if strings.Contains(flags, "i") {
+			goFlags += "i"
+		}
+		if strings.Contains(flags, "m") {
+			goFlags += "m"
+		}
+		finalPattern := pattern
+		if goFlags != "" {
+			finalPattern = "(?" + goFlags + ")" + pattern
+		}
+		re, err := regexp.Compile(finalPattern)
+		if err != nil {
+			return Value{Type: TypeVoid}
+		}
+		return Value{Type: TypeOpaque, Opaque: &OpaqueValue{Label: "RegExp", Data: re}}
+	}
+	tasks["regex_match"] = func(args []Value, ctx ExecutionContext) Value {
+		if len(args) < 2 {
+			return Value{Type: TypeVoid}
+		}
+		s := ValueToString(args[0])
+		patternVal := args[1]
+		if patternVal.Type == TypeOpaque && patternVal.Opaque.Label == "RegExp" {
+			re := patternVal.Opaque.Data.(*regexp.Regexp)
+			if re.MatchString(s) {
 				return Value{Type: TypeNumber, Number: 1}
 			}
-			return Value{Type: TypeVoid}
-		},
-		"lt": func(args []Value, ctx ExecutionContext) Value {
-			if len(args) < 2 {
-				return Value{Type: TypeVoid}
-			}
-			if args[0].Type != TypeNumber {
-				return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Number"}, {Type: TypeString, String: typeToString(args[0].Type)}, {Type: TypeString, String: "math.lt"}}}}
-			}
-			if args[1].Type != TypeNumber {
-				return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Number"}, {Type: TypeString, String: typeToString(args[1].Type)}, {Type: TypeString, String: "math.lt"}}}}
-			}
-			if args[0].Number < args[1].Number {
+		} else {
+			if strings.Contains(s, ValueToString(patternVal)) {
 				return Value{Type: TypeNumber, Number: 1}
 			}
+		}
+		return Value{Type: TypeVoid}
+	}
+	tasks["regex_replace"] = func(args []Value, ctx ExecutionContext) Value {
+		if len(args) < 3 {
 			return Value{Type: TypeVoid}
-		},
-		"eq": func(args []Value, ctx ExecutionContext) Value {
-			if len(args) < 2 {
-				return Value{Type: TypeVoid}
-			}
-			if hankEquals(args[0], args[1]) {
-				return Value{Type: TypeNumber, Number: 1}
-			}
-			return Value{Type: TypeVoid}
-		},
+		}
+		s := ValueToString(args[0])
+		repl := ValueToString(args[2])
+		if args[1].Type == TypeOpaque && args[1].Opaque.Label == "RegExp" {
+			re := args[1].Opaque.Data.(*regexp.Regexp)
+			return Value{Type: TypeString, String: re.ReplaceAllString(s, repl)}
+		} else {
+			return Value{Type: TypeString, String: strings.ReplaceAll(s, ValueToString(args[1]), repl)}
+		}
 	}
 
-	mods["logic"] = map[string]NativeFunc{
-		"and": func(args []Value, ctx ExecutionContext) Value {
-			if len(args) == 0 {
-				return Value{Type: TypeVoid}
+	// math
+	tasks["math_add"] = func(args []Value, ctx ExecutionContext) Value {
+		res := 0.0
+		for _, a := range args {
+			if a.Type != TypeNumber {
+				return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Number"}, {Type: TypeString, String: typeToString(a.Type)}, {Type: TypeString, String: "math_add"}}}}
 			}
-			var last Value = Value{Type: TypeVoid}
-			for _, a := range args {
-				if a.Type == TypeVoid {
-					return Value{Type: TypeVoid}
-				}
-				last = a
-			}
-			return last
-		},
-		"or": func(args []Value, ctx ExecutionContext) Value {
-			for _, a := range args {
-				if a.Type != TypeVoid {
-					return a
-				}
-			}
+			res += a.Number
+		}
+		return Value{Type: TypeNumber, Number: res}
+	}
+	tasks["math_sub"] = func(args []Value, ctx ExecutionContext) Value {
+		if len(args) < 2 {
 			return Value{Type: TypeVoid}
-		},
-		"eq": func(args []Value, ctx ExecutionContext) Value {
-			if len(args) < 2 {
-				return Value{Type: TypeVoid}
+		}
+		if args[0].Type != TypeNumber {
+			return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Number"}, {Type: TypeString, String: typeToString(args[0].Type)}, {Type: TypeString, String: "math_sub"}}}}
+		}
+		if args[1].Type != TypeNumber {
+			return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Number"}, {Type: TypeString, String: typeToString(args[1].Type)}, {Type: TypeString, String: "math_sub"}}}}
+		}
+		return Value{Type: TypeNumber, Number: args[0].Number - args[1].Number}
+	}
+	tasks["math_mul"] = func(args []Value, ctx ExecutionContext) Value {
+		res := 1.0
+		if len(args) == 0 {
+			return Value{Type: TypeNumber, Number: 0}
+		}
+		for _, a := range args {
+			if a.Type != TypeNumber {
+				return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Number"}, {Type: TypeString, String: typeToString(a.Type)}, {Type: TypeString, String: "math_mul"}}}}
 			}
-			if hankEquals(args[0], args[1]) {
-				return Value{Type: TypeNumber, Number: 1}
-			}
+			res *= a.Number
+		}
+		return Value{Type: TypeNumber, Number: res}
+	}
+	tasks["math_div"] = func(args []Value, ctx ExecutionContext) Value {
+		if len(args) < 2 {
 			return Value{Type: TypeVoid}
-		},
+		}
+		if args[0].Type != TypeNumber {
+			return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Number"}, {Type: TypeString, String: typeToString(args[0].Type)}, {Type: TypeString, String: "math_div"}}}}
+		}
+		if args[1].Type != TypeNumber {
+			return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Number"}, {Type: TypeString, String: typeToString(args[1].Type)}, {Type: TypeString, String: "math_div"}}}}
+		}
+		if args[1].Number == 0 {
+			return Value{Type: TypeVoid}
+		}
+		return Value{Type: TypeNumber, Number: args[0].Number / args[1].Number}
+	}
+	tasks["math_gt"] = func(args []Value, ctx ExecutionContext) Value {
+		if len(args) < 2 {
+			return Value{Type: TypeVoid}
+		}
+		if args[0].Type != TypeNumber {
+			return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Number"}, {Type: TypeString, String: typeToString(args[0].Type)}, {Type: TypeString, String: "math_gt"}}}}
+		}
+		if args[1].Type != TypeNumber {
+			return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Number"}, {Type: TypeString, String: typeToString(args[1].Type)}, {Type: TypeString, String: "math_gt"}}}}
+		}
+		if args[0].Number > args[1].Number {
+			return Value{Type: TypeNumber, Number: 1}
+		}
+		return Value{Type: TypeVoid}
+	}
+	tasks["math_lt"] = func(args []Value, ctx ExecutionContext) Value {
+		if len(args) < 2 {
+			return Value{Type: TypeVoid}
+		}
+		if args[0].Type != TypeNumber {
+			return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Number"}, {Type: TypeString, String: typeToString(args[0].Type)}, {Type: TypeString, String: "math_lt"}}}}
+		}
+		if args[1].Type != TypeNumber {
+			return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Number"}, {Type: TypeString, String: typeToString(args[1].Type)}, {Type: TypeString, String: "math_lt"}}}}
+		}
+		if args[0].Number < args[1].Number {
+			return Value{Type: TypeNumber, Number: 1}
+		}
+		return Value{Type: TypeVoid}
+	}
+	tasks["math_eq"] = func(args []Value, ctx ExecutionContext) Value {
+		if len(args) < 2 {
+			return Value{Type: TypeVoid}
+		}
+		if hankEquals(args[0], args[1]) {
+			return Value{Type: TypeNumber, Number: 1}
+		}
+		return Value{Type: TypeVoid}
 	}
 
-	mods["arr"] = map[string]NativeFunc{
-		"length": func(args []Value, ctx ExecutionContext) Value {
-			if len(args) == 0 {
-				return Value{Type: TypeVoid}
-			}
-			if args[0].Type != TypeArray {
-				return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Array"}, {Type: TypeString, String: typeToString(args[0].Type)}, {Type: TypeString, String: "arr.length"}}}}
-			}
-			return Value{Type: TypeNumber, Number: float64(len(*args[0].Array))}
-		},
-		"get": func(args []Value, ctx ExecutionContext) Value {
-			if len(args) < 2 {
-				return Value{Type: TypeVoid}
-			}
-			if args[0].Type != TypeArray {
-				return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Array"}, {Type: TypeString, String: typeToString(args[0].Type)}, {Type: TypeString, String: "arr.get"}}}}
-			}
-			if args[1].Type != TypeNumber {
-				return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Number"}, {Type: TypeString, String: typeToString(args[1].Type)}, {Type: TypeString, String: "arr.get"}}}}
-			}
-			idx := int(args[1].Number)
-			if idx < 0 || idx >= len(*args[0].Array) {
-				return Value{Type: TypeVoid}
-			}
-			return (*args[0].Array)[idx]
-		},
-		"push": func(args []Value, ctx ExecutionContext) Value {
-			if len(args) < 2 {
-				return Value{Type: TypeVoid}
-			}
-			if args[0].Type != TypeArray {
-				return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Array"}, {Type: TypeString, String: typeToString(args[0].Type)}, {Type: TypeString, String: "arr.push"}}}}
-			}
-			*args[0].Array = append(*args[0].Array, args[1])
+	// logic
+	tasks["logic_and"] = func(args []Value, ctx ExecutionContext) Value {
+		if len(args) == 0 {
 			return Value{Type: TypeVoid}
-		},
-		"pop": func(args []Value, ctx ExecutionContext) Value {
-			if len(args) == 0 {
+		}
+		var last Value = Value{Type: TypeVoid}
+		for _, a := range args {
+			if a.Type == TypeVoid {
 				return Value{Type: TypeVoid}
 			}
-			if args[0].Type != TypeArray {
-				return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Array"}, {Type: TypeString, String: typeToString(args[0].Type)}, {Type: TypeString, String: "arr.pop"}}}}
+			last = a
+		}
+		return last
+	}
+	tasks["logic_or"] = func(args []Value, ctx ExecutionContext) Value {
+		for _, a := range args {
+			if a.Type != TypeVoid {
+				return a
 			}
-			if len(*args[0].Array) == 0 {
-				return Value{Type: TypeVoid}
+		}
+		return Value{Type: TypeVoid}
+	}
+	tasks["logic_eq"] = func(args []Value, ctx ExecutionContext) Value {
+		if len(args) < 2 {
+			return Value{Type: TypeVoid}
+		}
+		if hankEquals(args[0], args[1]) {
+			return Value{Type: TypeNumber, Number: 1}
+		}
+		return Value{Type: TypeVoid}
+	}
+
+	// arr
+	tasks["arr_length"] = func(args []Value, ctx ExecutionContext) Value {
+		if len(args) == 0 {
+			return Value{Type: TypeVoid}
+		}
+		if args[0].Type != TypeArray {
+			return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Array"}, {Type: TypeString, String: typeToString(args[0].Type)}, {Type: TypeString, String: "arr_length"}}}}
+		}
+		return Value{Type: TypeNumber, Number: float64(len(*args[0].Array))}
+	}
+	tasks["arr_get"] = func(args []Value, ctx ExecutionContext) Value {
+		if len(args) < 2 {
+			return Value{Type: TypeVoid}
+		}
+		if args[0].Type != TypeArray {
+			return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Array"}, {Type: TypeString, String: typeToString(args[0].Type)}, {Type: TypeString, String: "arr_get"}}}}
+		}
+		if args[1].Type != TypeNumber {
+			return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Number"}, {Type: TypeString, String: typeToString(args[1].Type)}, {Type: TypeString, String: "arr_get"}}}}
+		}
+		idx := int(args[1].Number)
+		if idx < 0 || idx >= len(*args[0].Array) {
+			return Value{Type: TypeVoid}
+		}
+		return (*args[0].Array)[idx]
+	}
+	tasks["arr_push"] = func(args []Value, ctx ExecutionContext) Value {
+		if len(args) < 2 {
+			return Value{Type: TypeVoid}
+		}
+		if args[0].Type != TypeArray {
+			return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Array"}, {Type: TypeString, String: typeToString(args[0].Type)}, {Type: TypeString, String: "arr_push"}}}}
+		}
+		*args[0].Array = append(*args[0].Array, args[1])
+		return Value{Type: TypeVoid}
+	}
+	tasks["arr_pop"] = func(args []Value, ctx ExecutionContext) Value {
+		if len(args) == 0 {
+			return Value{Type: TypeVoid}
+		}
+		if args[0].Type != TypeArray {
+			return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Array"}, {Type: TypeString, String: typeToString(args[0].Type)}, {Type: TypeString, String: "arr_pop"}}}}
+		}
+		if len(*args[0].Array) == 0 {
+			return Value{Type: TypeVoid}
+		}
+		idx := len(*args[0].Array) - 1
+		val := (*args[0].Array)[idx]
+		*args[0].Array = (*args[0].Array)[:idx]
+		return val
+	}
+	tasks["arr_each"] = func(args []Value, ctx ExecutionContext) Value {
+		if len(args) < 2 {
+			return Value{Type: TypeVoid}
+		}
+		if args[0].Type != TypeArray {
+			return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Array"}, {Type: TypeString, String: typeToString(args[0].Type)}, {Type: TypeString, String: "arr_each"}}}}
+		}
+		items := make([]Value, len(*args[0].Array))
+		copy(items, *args[0].Array)
+		for idx, item := range items {
+			res := ctx.Call(args[1], []Value{item, {Type: TypeNumber, Number: float64(idx)}})
+			if res.Type == TypeOpaque && res.Opaque.Label == "__ControlFlow" && fmt.Sprintf("%v", res.Opaque.Data) == "Break" {
+				break
 			}
-			idx := len(*args[0].Array) - 1
-			val := (*args[0].Array)[idx]
-			*args[0].Array = (*args[0].Array)[:idx]
+			if ctx.IsError(res) {
+				return res
+			}
+		}
+		return Value{Type: TypeVoid}
+	}
+
+	// map
+	tasks["map_get"] = func(args []Value, ctx ExecutionContext) Value {
+		if len(args) < 2 {
+			return Value{Type: TypeVoid}
+		}
+		if args[0].Type != TypeMap {
+			return Value{Type: TypeVoid}
+		}
+		key := ValueToString(args[1])
+		if val, ok := args[0].Map[key]; ok {
 			return val
-		},
-		"each": func(args []Value, ctx ExecutionContext) Value {
-			if len(args) < 2 {
-				return Value{Type: TypeVoid}
-			}
-			if args[0].Type != TypeArray {
-				return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Array"}, {Type: TypeString, String: typeToString(args[0].Type)}, {Type: TypeString, String: "arr.each"}}}}
-			}
-			items := make([]Value, len(*args[0].Array))
-			copy(items, *args[0].Array)
-			for idx, item := range items {
-				res := ctx.Call(args[1], []Value{item, {Type: TypeNumber, Number: float64(idx)}})
-				if res.Type == TypeOpaque && res.Opaque.Label == "__ControlFlow" && fmt.Sprintf("%v", res.Opaque.Data) == "Break" {
-					break
-				}
-				if ctx.IsError(res) {
-					return res
-				}
-			}
+		}
+		return Value{Type: TypeVoid}
+	}
+	tasks["map_set"] = func(args []Value, ctx ExecutionContext) Value {
+		if len(args) < 3 {
 			return Value{Type: TypeVoid}
-		},
+		}
+		if args[0].Type != TypeMap {
+			return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Map"}, {Type: TypeString, String: typeToString(args[0].Type)}, {Type: TypeString, String: "map_set"}}}}
+		}
+		key := ValueToString(args[1])
+		args[0].Map[key] = args[2]
+		return Value{Type: TypeVoid}
+	}
+	tasks["map_keys"] = func(args []Value, ctx ExecutionContext) Value {
+		if len(args) == 0 || args[0].Type != TypeMap {
+			return Value{Type: TypeVoid}
+		}
+		var keys []Value
+		for k := range args[0].Map {
+			keys = append(keys, Value{Type: TypeString, String: k})
+		}
+		return Value{Type: TypeArray, Array: &keys}
 	}
 
-	mods["map"] = map[string]NativeFunc{
-		"get": func(args []Value, ctx ExecutionContext) Value {
-			if len(args) < 2 {
-				return Value{Type: TypeVoid}
-			}
-			if args[0].Type != TypeMap {
-				return Value{Type: TypeVoid}
-			}
-			key := ValueToString(args[1])
-			if val, ok := args[0].Map[key]; ok {
-				return val
-			}
+	// json
+	tasks["json_parse"] = func(args []Value, ctx ExecutionContext) Value {
+		if len(args) == 0 {
 			return Value{Type: TypeVoid}
-		},
-		"set": func(args []Value, ctx ExecutionContext) Value {
-			if len(args) < 3 {
-				return Value{Type: TypeVoid}
-			}
-			if args[0].Type != TypeMap {
-				return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Map"}, {Type: TypeString, String: typeToString(args[0].Type)}, {Type: TypeString, String: "map.set"}}}}
-			}
-			key := ValueToString(args[1])
-			args[0].Map[key] = args[2]
+		}
+		s := ValueToString(args[0])
+		var data interface{}
+		if err := json.Unmarshal([]byte(s), &data); err != nil {
 			return Value{Type: TypeVoid}
-		},
-		"keys": func(args []Value, ctx ExecutionContext) Value {
-			if len(args) == 0 || args[0].Type != TypeMap {
-				return Value{Type: TypeVoid}
-			}
-			var keys []Value
-			for k := range args[0].Map {
-				keys = append(keys, Value{Type: TypeString, String: k})
-			}
-			return Value{Type: TypeArray, Array: &keys}
-		},
+		}
+		return mapAnyToHank(data)
+	}
+	tasks["json_stringify"] = func(args []Value, ctx ExecutionContext) Value {
+		if len(args) == 0 {
+			return Value{Type: TypeVoid}
+		}
+		any, ok := mapHankToAny(args[0])
+		if !ok {
+			return Value{Type: TypeVoid}
+		}
+		b, err := json.Marshal(any)
+		if err != nil {
+			return Value{Type: TypeVoid}
+		}
+		return Value{Type: TypeString, String: string(b)}
 	}
 
-	mods["json"] = map[string]NativeFunc{
-		"parse": func(args []Value, ctx ExecutionContext) Value {
-			if len(args) == 0 {
-				return Value{Type: TypeVoid}
-			}
-			s := ValueToString(args[0])
-			var data interface{}
-			if err := json.Unmarshal([]byte(s), &data); err != nil {
-				return Value{Type: TypeVoid}
-			}
-			return mapAnyToHank(data)
-		},
-		"stringify": func(args []Value, ctx ExecutionContext) Value {
-			if len(args) == 0 {
-				return Value{Type: TypeVoid}
-			}
-			any, ok := mapHankToAny(args[0])
-			if !ok {
-				return Value{Type: TypeVoid}
-			}
-			b, err := json.Marshal(any)
-			if err != nil {
-				return Value{Type: TypeVoid}
-			}
-			return Value{Type: TypeString, String: string(b)}
-		},
-	}
-
-	mods["err"] = map[string]NativeFunc{
-		"code": func(args []Value, ctx ExecutionContext) Value {
-			if len(args) == 0 {
-				return Value{Type: TypeVoid}
-			}
-			if args[0].Type != TypeError {
-				return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Error"}, {Type: TypeString, String: typeToString(args[0].Type)}, {Type: TypeString, String: "err.code"}}}}
-			}
-			return Value{Type: TypeNumber, Number: float64(args[0].Error.Code)}
-		},
-		"message": func(args []Value, ctx ExecutionContext) Value {
-			if len(args) == 0 {
-				return Value{Type: TypeVoid}
-			}
-			if args[0].Type != TypeError {
-				return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Error"}, {Type: TypeString, String: typeToString(args[0].Type)}, {Type: TypeString, String: "err.message"}}}}
-			}
-			err := args[0].Error
-			loc := ctx.GetLocalization()
-			tmpl, ok := loc[int(err.Code)]
-			if !ok {
-				tmpl = "Unknown Error"
-			}
-			for i, arg := range err.Args {
-				tmpl = strings.ReplaceAll(tmpl, fmt.Sprintf("{%d}", i), ValueToString(arg))
-			}
-			return Value{Type: TypeString, String: tmpl}
-		},
-		"args": func(args []Value, ctx ExecutionContext) Value {
-			if len(args) == 0 {
-				return Value{Type: TypeVoid}
-			}
-			if args[0].Type != TypeError {
-				return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Error"}, {Type: TypeString, String: typeToString(args[0].Type)}, {Type: TypeString, String: "err.args"}}}}
-			}
-			return Value{Type: TypeArray, Array: &args[0].Error.Args}
-		},
-		"isError": func(args []Value, ctx ExecutionContext) Value {
-			if len(args) > 0 && args[0].Type == TypeError {
-				return Value{Type: TypeNumber, Number: 1}
-			}
+	// err
+	tasks["err_code"] = func(args []Value, ctx ExecutionContext) Value {
+		if len(args) == 0 {
 			return Value{Type: TypeVoid}
-		},
+		}
+		if args[0].Type != TypeError {
+			return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Error"}, {Type: TypeString, String: typeToString(args[0].Type)}, {Type: TypeString, String: "err_code"}}}}
+		}
+		return Value{Type: TypeNumber, Number: float64(args[0].Error.Code)}
+	}
+	tasks["err_message"] = func(args []Value, ctx ExecutionContext) Value {
+		if len(args) == 0 {
+			return Value{Type: TypeVoid}
+		}
+		if args[0].Type != TypeError {
+			return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Error"}, {Type: TypeString, String: typeToString(args[0].Type)}, {Type: TypeString, String: "err_message"}}}}
+		}
+		err := args[0].Error
+		loc := ctx.GetLocalization()
+		tmpl, ok := loc[int(err.Code)]
+		if !ok {
+			tmpl = "Unknown Error"
+		}
+		for i, arg := range err.Args {
+			tmpl = strings.ReplaceAll(tmpl, fmt.Sprintf("{%d}", i), ValueToString(arg))
+		}
+		return Value{Type: TypeString, String: tmpl}
+	}
+	tasks["err_args"] = func(args []Value, ctx ExecutionContext) Value {
+		if len(args) == 0 {
+			return Value{Type: TypeVoid}
+		}
+		if args[0].Type != TypeError {
+			return Value{Type: TypeError, Error: &ErrorValue{Code: TypeMismatch, Args: []Value{{Type: TypeString, String: "Error"}, {Type: TypeString, String: typeToString(args[0].Type)}, {Type: TypeString, String: "err_args"}}}}
+		}
+		return Value{Type: TypeArray, Array: &args[0].Error.Args}
+	}
+	tasks["err_isError"] = func(args []Value, ctx ExecutionContext) Value {
+		if len(args) > 0 && args[0].Type == TypeError {
+			return Value{Type: TypeNumber, Number: 1}
+		}
+		return Value{Type: TypeVoid}
 	}
 
-	return mods
+	return tasks
 }
 
 func mapAnyToHank(v interface{}) Value {
